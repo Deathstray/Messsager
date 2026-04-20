@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../api';
 import MessageBubble from './MessageBubble';
 
-// Группируем сообщения по дате
 function groupByDate(msgs) {
     const groups = [];
     let lastDate = null;
@@ -20,19 +19,18 @@ function groupByDate(msgs) {
     return groups;
 }
 
-export default function ChatWindow({ chat, socket, online }) {
+export default function ChatWindow({ chat, socket, online, incomingMessage }) {
     const { user, token } = useAuth();
     const [messages,   setMessages]   = useState([]);
     const [text,       setText]       = useState('');
     const [files,      setFiles]      = useState([]);
-    const [typing,     setTyping]     = useState(null); // имя кто печатает
+    const [typing,     setTyping]     = useState(null);
     const [loading,    setLoading]    = useState(false);
     const [dateGroups, setDateGroups] = useState([]);
     const bottomRef   = useRef(null);
     const typingTimer = useRef(null);
     const fileRef     = useRef(null);
 
-    // ── Загрузка сообщений ────────────────────────────────────────────────────
     const loadMessages = useCallback(async () => {
         if (!chat) return;
         setLoading(true);
@@ -52,23 +50,27 @@ export default function ChatWindow({ chat, socket, online }) {
         setTyping(null);
     }, [chat?._id]);
 
-    // ── Прокрутка вниз при новых сообщениях ──────────────────────────────────
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // ── Socket события ────────────────────────────────────────────────────────
+    // ИСПРАВЛЕНО: входящие сообщения получаем через пропс от Messenger.jsx
+    // Это надёжно — Messenger.jsx уже точно получает socket события (сайдбар работал)
+    useEffect(() => {
+        if (!incomingMessage || !chat) return;
+        const { chatId, message } = incomingMessage;
+        if (chatId !== chat._id) return;
+        setMessages(prev => {
+            if (prev.find(m => m._id === message._id)) return prev;
+            const updated = [...prev, message];
+            setDateGroups(groupByDate(updated));
+            return updated;
+        });
+    }, [incomingMessage]);
+
+    // Socket: только удаление и индикатор печати
     useEffect(() => {
         if (!socket || !chat) return;
-
-        function onNewMessage({ chatId, message }) {
-            if (chatId !== chat._id) return;
-            setMessages(prev => {
-                const updated = [...prev, message];
-                setDateGroups(groupByDate(updated));
-                return updated;
-            });
-        }
 
         function onDeleteMessage({ chatId, messageId }) {
             if (chatId !== chat._id) return;
@@ -80,25 +82,21 @@ export default function ChatWindow({ chat, socket, online }) {
         }
 
         function onTypingStart({ userId, name }) {
-            // Показываем только чужой индикатор
             if (userId !== user?.id) setTyping(name);
         }
         function onTypingStop() { setTyping(null); }
 
-        socket.on('message:new',     onNewMessage);
         socket.on('message:deleted', onDeleteMessage);
         socket.on('typing:start',    onTypingStart);
         socket.on('typing:stop',     onTypingStop);
 
         return () => {
-            socket.off('message:new',     onNewMessage);
             socket.off('message:deleted', onDeleteMessage);
             socket.off('typing:start',    onTypingStart);
             socket.off('typing:stop',     onTypingStop);
         };
     }, [socket, chat?._id, user?.id]);
 
-    // ── Индикатор печати ──────────────────────────────────────────────────────
     function handleInput(val) {
         setText(val);
         if (!socket || !chat) return;
@@ -110,7 +108,6 @@ export default function ChatWindow({ chat, socket, online }) {
         );
     }
 
-    // ── Отправка сообщения ────────────────────────────────────────────────────
     async function handleSend(e) {
         e?.preventDefault();
         if (!text.trim() && !files.length) return;
@@ -124,17 +121,22 @@ export default function ChatWindow({ chat, socket, online }) {
         socket?.emit('typing:stop', { chatId: chat._id });
 
         try {
-            await apiFetch(`/api/chats/${chat._id}/messages`, {
+            const newMsg = await apiFetch(`/api/chats/${chat._id}/messages`, {
                 method: 'POST',
                 body:   formData,
             }, token);
+
+            setMessages(prev => {
+                if (prev.find(m => m._id === newMsg._id)) return prev;
+                const updated = [...prev, newMsg];
+                setDateGroups(groupByDate(updated));
+                return updated;
+            });
         } catch (err) {
             alert('Ошибка отправки: ' + err.message);
         }
     }
 
-    // ── Удаление сообщения ────────────────────────────────────────────────────
-    // ИСПРАВЛЕНО: правильный URL /api/messages/:id вместо /api/chats/:id
     async function handleDelete(msgId) {
         if (!confirm('Удалить сообщение?')) return;
         try {
@@ -144,7 +146,6 @@ export default function ChatWindow({ chat, socket, online }) {
         }
     }
 
-    // ── Пустое состояние ──────────────────────────────────────────────────────
     if (!chat) return (
         <div style={s.empty}>
             <div style={{ fontSize: 64, marginBottom: 16 }}>💬</div>
@@ -153,16 +154,11 @@ export default function ChatWindow({ chat, socket, online }) {
     );
 
     const isGroup = chat.type === 'group';
-
-    // Для DM — найти собеседника и проверить онлайн
-    const otherMember = !isGroup
-        ? chat.members?.find(m => String(m._id) !== user?.id)
-        : null;
+    const otherMember = !isGroup ? chat.members?.find(m => String(m._id) !== user?.id) : null;
     const isOnline = otherMember && online?.has(String(otherMember._id));
 
     return (
         <div style={s.wrap}>
-            {/* ── Шапка чата ── */}
             <div style={s.header}>
                 <div style={{ ...s.avatar, background: isGroup ? '#8957e5' : (otherMember?.avatar_color || '#2196f3') }}>
                     {isGroup ? '👥' : chat.name?.[0]?.toUpperCase()}
@@ -170,102 +166,53 @@ export default function ChatWindow({ chat, socket, online }) {
                 <div>
                     <div style={{ fontWeight: 700, fontSize: 16 }}>{chat.name}</div>
                     <div style={{ fontSize: 12, color: isOnline ? '#26a641' : '#888' }}>
-                        {isGroup
-                            ? `${chat.members?.length || 0} участников`
-                            : isOnline ? '● В сети' : '○ Не в сети'}
+                        {isGroup ? `${chat.members?.length || 0} участников` : isOnline ? '● В сети' : '○ Не в сети'}
                     </div>
                 </div>
             </div>
 
-            {/* ── Сообщения ── */}
             <div style={s.messages}>
                 {loading && <div style={s.center}>Загрузка...</div>}
-
                 {dateGroups.map(group => (
                     <div key={group.date}>
-                        {/* Разделитель даты */}
-                        <div style={s.dateDivider}>
-                            <span style={s.dateLabel}>{group.date}</span>
-                        </div>
+                        <div style={s.dateDivider}><span style={s.dateLabel}>{group.date}</span></div>
                         {group.msgs.map(msg => (
-                            <MessageBubble
-                                key={msg._id}
-                                msg={msg}
-                                isGroup={isGroup}
-                                onDelete={handleDelete}
-                            />
+                            <MessageBubble key={msg._id} msg={msg} isGroup={isGroup} onDelete={handleDelete} />
                         ))}
                     </div>
                 ))}
-
-                {messages.length === 0 && !loading && (
-                    <div style={s.center}>Нет сообщений. Напишите первым!</div>
-                )}
-
-                {/* Индикатор печати */}
-                {typing && (
-                    <div style={{ fontSize: 13, color: '#888', padding: '4px 8px' }}>
-                        ✍️ {typing} печатает...
-                    </div>
-                )}
+                {messages.length === 0 && !loading && <div style={s.center}>Нет сообщений. Напишите первым!</div>}
+                {typing && <div style={{ fontSize: 13, color: '#888', padding: '4px 8px' }}>✍️ {typing} печатает...</div>}
                 <div ref={bottomRef} />
             </div>
 
-            {/* ── Превью выбранных файлов ── */}
             {files.length > 0 && (
                 <div style={s.filePreview}>
                     {files.map((f, i) => {
-                        const icon = f.type.startsWith('image/')
-                            ? '🖼' : f.type.startsWith('video/')
-                            ? '🎬' : f.type.startsWith('audio/')
-                            ? '🎵' : '📎';
+                        const icon = f.type.startsWith('image/') ? '🖼' : f.type.startsWith('video/') ? '🎬' : f.type.startsWith('audio/') ? '🎵' : '📎';
                         return (
                             <div key={i} style={s.fileChip}>
                                 <span style={{ fontSize: 14 }}>{icon}</span>
                                 <span style={s.fileChipName}>{f.name}</span>
-                                <span style={{ fontSize: 11, color: '#999', whiteSpace: 'nowrap' }}>
-                                    {(f.size / 1024).toFixed(0)} КБ
-                                </span>
-                                <button
-                                    onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))}
-                                    style={s.removeFile}
-                                >✕</button>
+                                <span style={{ fontSize: 11, color: '#999', whiteSpace: 'nowrap' }}>{(f.size / 1024).toFixed(0)} КБ</span>
+                                <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} style={s.removeFile}>✕</button>
                             </div>
                         );
                     })}
                 </div>
             )}
 
-            {/* ── Поле ввода ── */}
             <form onSubmit={handleSend} style={s.form}>
-                <button
-                    type="button"
-                    style={s.attachBtn}
-                    onClick={() => fileRef.current?.click()}
-                    title="Прикрепить файл (фото, видео, архив...)"
-                >📎</button>
-                <input
-                    ref={fileRef}
-                    type="file"
-                    multiple
-                    accept="*/*"
-                    style={{ display: 'none' }}
-                    onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files)])}
-                />
+                <button type="button" style={s.attachBtn} onClick={() => fileRef.current?.click()} title="Прикрепить файл">📎</button>
+                <input ref={fileRef} type="file" multiple accept="*/*" style={{ display: 'none' }} onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files)])} />
                 <input
                     style={s.textInput}
                     placeholder="Написать сообщение..."
                     value={text}
                     onChange={e => handleInput(e.target.value)}
-                    onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) handleSend(e);
-                    }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(e); }}
                 />
-                <button
-                    type="submit"
-                    style={{ ...s.sendBtn, opacity: (!text.trim() && !files.length) ? 0.5 : 1 }}
-                    disabled={!text.trim() && !files.length}
-                >➤</button>
+                <button type="submit" style={{ ...s.sendBtn, opacity: (!text.trim() && !files.length) ? 0.5 : 1 }} disabled={!text.trim() && !files.length}>➤</button>
             </form>
         </div>
     );

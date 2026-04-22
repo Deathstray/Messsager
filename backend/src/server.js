@@ -12,7 +12,8 @@ const authRoutes    = require('./routes/auth');
 const userRoutes    = require('./routes/users');
 const chatRoutes    = require('./routes/chats');
 const messageRoutes = require('./routes/messages');
-const deleteRoutes  = require('./routes/messageDelete');
+// messageActions = DELETE + react + forward + save  (старый messageDelete больше не нужен)
+const messageActions = require('./routes/messageActions');
 
 const UPLOAD_DIR = path.join(__dirname, '../storage/uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -28,14 +29,19 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 app.use('/uploads', express.static(UPLOAD_DIR));
 
+// ── REST маршруты ─────────────────────────────────────────────────────────────
 app.use('/api',          authRoutes);
 app.use('/api/users',    userRoutes);
 app.use('/api/chats',    chatRoutes);
 app.use('/api/chats',    messageRoutes);
-app.use('/api/messages', deleteRoutes);
+// ИСПРАВЛЕНО: messageActions подключён под /api/messages
+// теперь работают: DELETE/react/forward/save → /api/messages/:id/...
+app.use('/api/messages', messageActions);
+
 app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
 
-const onlineUsers = new Map();
+// ── Socket.IO ─────────────────────────────────────────────────────────────────
+const onlineUsers = new Map(); // userId → socketId
 app.get('/api/online', (_, res) => res.json([...onlineUsers.keys()]));
 
 io.use((socket, next) => {
@@ -49,7 +55,13 @@ io.on('connection', (socket) => {
     const userId = String(socket.user.id);
     socket.join(`user:${userId}`);
     onlineUsers.set(userId, socket.id);
-    io.emit('user:online', userId);
+
+    // ИСПРАВЛЕНО: отправляем новому пользователю список всех уже онлайн пользователей
+    // Без этого пользователь А не знал что Б уже был онлайн до его подключения
+    socket.emit('users:online_list', [...onlineUsers.keys()]);
+
+    // Всем остальным говорим что этот пользователь онлайн
+    socket.broadcast.emit('user:online', userId);
 
     socket.on('typing:start', async ({ chatId }) => {
         try {
@@ -71,16 +83,20 @@ io.on('connection', (socket) => {
         } catch {}
     });
 
-    socket.on('disconnect', () => { onlineUsers.delete(userId); io.emit('user:offline', userId); });
+    socket.on('disconnect', () => {
+        onlineUsers.delete(userId);
+        io.emit('user:offline', userId);
+    });
 });
 
-// Фронтенд (для Railway)
+// ── Фронтенд (для Railway) ────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '../../frontend/dist');
 if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
     app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
 }
 
+// ── MongoDB + запуск ──────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 if (!process.env.MONGO_URL) { console.error('❌ MONGO_URL не задан'); process.exit(1); }
 

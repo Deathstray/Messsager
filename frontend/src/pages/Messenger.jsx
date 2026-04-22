@@ -15,13 +15,11 @@ export default function Messenger() {
     const [socket,     setSocket]     = useState(null);
     const [online,     setOnline]     = useState(new Set());
 
-    // Передаём события вниз через пропсы — надёжнее чем socket внутри ChatWindow
     const [incomingMsg,      setIncomingMsg]      = useState(null);
     const [incomingReaction, setIncomingReaction] = useState(null);
     const [clearedChatId,    setClearedChatId]    = useState(null);
 
-    // Мобильный режим: показываем либо список, либо чат
-    const [mobileView, setMobileView] = useState('list'); // 'list' | 'chat'
+    const [mobileView, setMobileView] = useState('list');
 
     useEffect(() => {
         if (!token) return;
@@ -63,6 +61,12 @@ export default function Messenger() {
 
         s.on('message:reaction', data => setIncomingReaction({ ...data, ts: Date.now() }));
 
+        // ИСПРАВЛЕНО: при подключении получаем список всех уже онлайн пользователей
+        // Без этого "А" не знал что "Админ" уже онлайн до его подключения
+        s.on('users:online_list', ids => {
+            setOnline(new Set(ids));
+        });
+
         s.on('user:online',  id => setOnline(prev => new Set([...prev, id])));
         s.on('user:offline', id => setOnline(prev => { const n = new Set(prev); n.delete(id); return n; }));
 
@@ -91,9 +95,7 @@ export default function Messenger() {
         setMobileView('chat');
     }
 
-    function handleBack() {
-        setMobileView('list');
-    }
+    function handleBack() { setMobileView('list'); }
 
     function handleRemoveChat(chatId) {
         setChats(prev => prev.filter(c => c._id !== chatId));
@@ -106,7 +108,6 @@ export default function Messenger() {
                 display: mobileView === 'chat' ? 'none' : 'flex',
                 flexDirection: 'column',
                 width: 300, minWidth: 260,
-                // На десктопе всегда видим
                 ...(window.innerWidth > 640 ? { display: 'flex' } : {}),
             }}
             className="sidebar-panel">

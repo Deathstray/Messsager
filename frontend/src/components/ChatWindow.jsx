@@ -348,7 +348,7 @@ const s = {
     messages:   { flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2, background: '#f5f5f5' },
     center:     { textAlign: 'center', color: '#999', padding: 20 },
     dateDivider:{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '12px 0' },
-    dateLabel:  { background: '#e0e0e0', color: '#666', fontSize: 11, padding: '3px 12px', borderRadius: 10 },
+    dateLabel:  { background: '#e0e0e0', color: '#666', fontSize: 11, padding: '3px 12px', borderRadius: 10, userSelect: 'none', pointerEvents: 'none' },
     replyBar:   { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#fff', borderTop: '1px solid #eee', borderLeft: '3px solid #2196f3', flexShrink: 0 },
     replyX:     { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#aaa', padding: 0 },
     filePrev:   { display: 'flex', flexWrap: 'wrap', gap: 6, padding: '7px 14px', background: '#fff', borderTop: '1px solid #eee', flexShrink: 0 },

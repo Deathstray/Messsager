@@ -1,5 +1,6 @@
 const router = require('express').Router();
-const path = require('path'), fs = require('fs');
+const path   = require('path');
+const fs     = require('fs');
 const { auth } = require('../middleware/auth');
 const Message  = require('../models/Message');
 const Chat     = require('../models/Chat');
@@ -8,6 +9,8 @@ const POP = [
     { path: 'from_user', select: 'display_name avatar_color username avatar' },
     { path: 'reply_to',  populate: { path: 'from_user', select: 'display_name' } },
 ];
+
+const MEMBER_POP = 'username display_name avatar_color avatar';
 
 // ── DELETE /api/messages/:id ──────────────────────────────────────────────────
 router.delete('/:id', auth, async (req, res) => {
@@ -18,7 +21,9 @@ router.delete('/:id', auth, async (req, res) => {
             return res.status(403).json({ error: 'Нельзя удалять чужие сообщения' });
 
         const uploadDir = path.join(__dirname, '../../storage/uploads');
-        msg.files.forEach(f => { try { fs.unlinkSync(path.join(uploadDir, f.filename)); } catch {} });
+        msg.files.forEach(f => {
+            try { fs.unlinkSync(path.join(uploadDir, f.filename)); } catch {}
+        });
 
         const chatId = msg.chat_id;
         await msg.deleteOne();
@@ -30,7 +35,7 @@ router.delete('/:id', auth, async (req, res) => {
             });
         });
         res.json({ ok: true });
-    } catch (e) { res.status(500).json({ error: 'Ошибка сервера' }); }
+    } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
 });
 
 // ── POST /api/messages/:id/react ──────────────────────────────────────────────
@@ -116,13 +121,19 @@ router.post('/:id/save', auth, async (req, res) => {
         const orig = await Message.findById(req.params.id).populate('from_user', 'display_name');
         if (!orig) return res.status(404).json({ error: 'Сообщение не найдено' });
 
+        // Ищем или создаём чат Избранное
         let saved = await Chat.findOne({
-            type: 'saved', members: { $all: [req.user.id], $size: 1 },
+            type:    'saved',
+            members: { $all: [req.user.id], $size: 1 },
         });
 
         if (!saved) {
-            saved = await Chat.create({ type: 'saved', name: 'Избранное', members: [req.user.id] });
-            const pop = await saved.populate('members', 'username display_name avatar_color avatar');
+            saved = await Chat.create({
+                type:    'saved',
+                name:    'Избранное',
+                members: [req.user.id],
+            });
+            const pop = await saved.populate('members', MEMBER_POP);
             req.app.get('io').to(`user:${req.user.id}`).emit('chat:new', pop);
         }
 

@@ -1,58 +1,68 @@
-const router = require('express').Router();
-const path   = require('path');
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+const authMiddleware = require('../middleware/auth');
 const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
-const { auth } = require('../middleware/auth');
-const User     = require('../models/User');
+const path = require('path');
 
-const avatarStorage = multer.diskStorage({
-    destination: path.join(__dirname, '../../storage/uploads'),
-    filename: (req, file, cb) => cb(null, `ava_${uuidv4()}${path.extname(file.originalname)}`),
+// Хранение аватарок
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, '../../uploads')),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `avatar_${req.user._id}_${Date.now()}${ext}`);
+    }
 });
-const avatarUpload = multer({ storage: avatarStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// GET /api/users/me
-router.get('/me', auth, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).select('-password');
-        if (!user) return res.status(404).json({ error: 'Не найден' });
-        res.json(user);
-    } catch { res.status(500).json({ error: 'Ошибка сервера' }); }
-});
-
-// GET /api/users?q=  — все пользователи по алфавиту, или поиск
-router.get('/', auth, async (req, res) => {
+// Поиск пользователей (все от А до Я при пустом запросе)
+router.get('/search', authMiddleware, async (req, res) => {
     try {
         const q = req.query.q || '';
-        const filter = { _id: { $ne: req.user.id } };
-        if (q.trim()) {
-            filter.$or = [
-                { display_name: { $regex: q, $options: 'i' } },
-                { username:     { $regex: q, $options: 'i' } },
-            ];
-        }
-        const users = await User.find(filter).select('-password').sort({ display_name: 1 }).limit(100);
-        res.json(users);
-    } catch { res.status(500).json({ error: 'Ошибка сервера' }); }
+        const filter = q
+            ? {
+                _id: { $ne: req.user._id },
+                $or: [
+                    { nickname: { $regex: q, $options: 'i' } },
+                    { displayName: { $regex: q, $options: 'i' } }
+                ]
+            }
+            : { _id: { $ne: req.user._id } };
+
+        const users = await User.find(filter)
+            .select('nickname displayName avatar isOnline lastSeen')
+            .sort({ nickname: 1 })
+            .limit(50);
+
+        res.json({ users: users.map(u => u.toSafeObject()) });
+    } catch (err) {
+        res.status(500).json({ error: 'Ошибка поиска' });
+    }
 });
 
-// POST /api/users/avatar — сменить аватарку профиля
-router.post('/avatar', auth, avatarUpload.single('avatar'), async (req, res) => {
+// Получить профиль пользователя по ID
+router.get('/:id', authMiddleware, async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: 'Файл не передан' });
-        const user = await User.findByIdAndUpdate(req.user.id, { avatar: req.file.filename }, { new: true }).select('-password');
-        res.json(user);
-    } catch { res.status(500).json({ error: 'Ошибка сервера' }); }
+        const user = await User.findById(req.params.id)
+            .select('nickname displayName avatar isOnline lastSeen');
+        if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+        res.json({ user: user.toSafeObject() });
+    } catch (err) {
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
 });
 
-// PUT /api/users/profile — изменить имя
-router.put('/profile', auth, async (req, res) => {
+// Загрузить аватар через файл
+router.post('/upload-avatar', authMiddleware, upload.single('avatar'), async (req, res) => {
     try {
-        const { display_name } = req.body;
-        if (!display_name?.trim()) return res.status(400).json({ error: 'Имя не может быть пустым' });
-        const user = await User.findByIdAndUpdate(req.user.id, { display_name: display_name.trim() }, { new: true }).select('-password');
-        res.json(user);
-    } catch { res.status(500).json({ error: 'Ошибка сервера' }); }
+        if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+        const avatarUrl = `/uploads/${req.file.filename}`;
+        req.user.avatar = avatarUrl;
+        await req.user.save();
+        res.json({ user: req.user.toSafeObject(), avatarUrl });
+    } catch (err) {
+        res.status(500).json({ error: 'Ошибка загрузки' });
+    }
 });
 
 module.exports = router;

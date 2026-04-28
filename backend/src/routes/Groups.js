@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const Group = require('../models/Group');
 const User = require('../models/User');
-const { auth } = require('../middleware/auth'); // твой middleware авторизации
+const Message = require('../models/Message');
+const { auth } = require('../middleware/auth');
 
-// 🔧 Проверка: является ли пользователь админом/создателем группы
+// Проверка прав администратора в группе
 const isGroupAdmin = async (groupId, userId) => {
     const group = await Group.findById(groupId);
     if (!group) return false;
@@ -11,7 +12,7 @@ const isGroupAdmin = async (groupId, userId) => {
     return member && (member.role === 'admin' || member.role === 'creator');
 };
 
-// POST /api/groups/:id/kick — выгнать участника
+// POST /api/groups/:id/kick - выгнать участника
 router.post('/:id/kick', auth, async (req, res) => {
     try {
         const { userId } = req.body;
@@ -25,7 +26,6 @@ router.post('/:id/kick', auth, async (req, res) => {
         const group = await Group.findById(groupId);
         if (!group) return res.status(404).json({ error: 'Группа не найдена' });
 
-        // Нельзя кикнуть создателя
         if (String(group.creator) === String(userId)) {
             return res.status(400).json({ error: 'Нельзя выгнать создателя' });
         }
@@ -33,9 +33,8 @@ router.post('/:id/kick', auth, async (req, res) => {
         group.members = group.members.filter(m => String(m.user) !== String(userId));
         await group.save();
 
-        // Уведомление через сокет (опционально)
         const io = req.app.get('io');
-        io.to(`group:${groupId}`).emit('group:member-kicked', { userId, groupId });
+        io.to('group:' + groupId).emit('group:member-kicked', { userId, groupId });
 
         res.json({ success: true });
     } catch (err) {
@@ -44,10 +43,10 @@ router.post('/:id/kick', auth, async (req, res) => {
     }
 });
 
-// POST /api/groups/:id/mute — замьютить участника
+// POST /api/groups/:id/mute - замьютить участника
 router.post('/:id/mute', auth, async (req, res) => {
     try {
-        const { userId, minutes } = req.body; // minutes: 0 = навсегда
+        const { userId, minutes } = req.body;
         const groupId = req.params.id;
         const adminId = req.user.id;
 
@@ -73,7 +72,7 @@ router.post('/:id/mute', auth, async (req, res) => {
     }
 });
 
-// POST /api/groups/:id/ban — забанить участника
+// POST /api/groups/:id/ban - забанить участника
 router.post('/:id/ban', auth, async (req, res) => {
     try {
         const { userId, minutes } = req.body;
@@ -95,9 +94,6 @@ router.post('/:id/ban', auth, async (req, res) => {
         member.bannedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : new Date('2099-12-31');
         await group.save();
 
-        // Удаляем из активных участников (опционально)
-        // group.members = group.members.filter(m => String(m.user) !== String(userId));
-
         res.json({ success: true, bannedUntil: member.bannedUntil });
     } catch (err) {
         console.error('[GROUP_BAN_ERROR]', err);
@@ -105,19 +101,22 @@ router.post('/:id/ban', auth, async (req, res) => {
     }
 });
 
-// 🔧 Проверка мьюта/бана при отправке сообщения (добавь в routes/messages.js)
-// Перед сохранением сообщения:
+// Проверка мьюта/бана при отправке сообщения
+// Вызывать в routes/messages.js перед сохранением сообщения
 /*
-const group = await Group.findById(chatId);
-const member = group?.members?.find(m => String(m.user) === String(userId));
-if (member) {
-  if (member.bannedUntil && member.bannedUntil > new Date()) {
-    return res.status(403).json({ error: 'Вы забанены в этой группе' });
+const checkUserCanSend = async (groupId, userId) => {
+  const group = await Group.findById(groupId);
+  const member = group?.members?.find(m => String(m.user) === String(userId));
+  if (member) {
+    if (member.bannedUntil && member.bannedUntil > new Date()) {
+      return { allowed: false, error: 'Вы забанены в этой группе' };
+    }
+    if (member.mutedUntil && member.mutedUntil > new Date()) {
+      return { allowed: false, error: 'Вы замьючены, попробуйте позже' };
+    }
   }
-  if (member.mutedUntil && member.mutedUntil > new Date()) {
-    return res.status(403).json({ error: 'Вы замьючены, попробуйте позже' });
-  }
-}
+  return { allowed: true };
+};
 */
 
 module.exports = router;

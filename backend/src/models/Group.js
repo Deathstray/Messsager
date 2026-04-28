@@ -4,8 +4,8 @@ const memberSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     role: { type: String, enum: ['member', 'admin', 'creator'], default: 'member' },
     joinedAt: { type: Date, default: Date.now },
-    mutedUntil: { type: Date, default: null },  // до когда замьючен
-    bannedUntil: { type: Date, default: null }  // до когда забанен
+    mutedUntil: { type: Date, default: null },
+    bannedUntil: { type: Date, default: null }
 });
 
 const groupSchema = new mongoose.Schema({
@@ -14,11 +14,10 @@ const groupSchema = new mongoose.Schema({
     avatar: { type: String, default: null },
     creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     members: [memberSchema],
-    isPrivate: { type: Boolean, default: false }, // приватная = только по приглашению
-    inviteCode: { type: String, unique: true, sparse: true } // для приватных групп
+    isPrivate: { type: Boolean, default: false },
+    inviteCode: { type: String, unique: true, sparse: true }
 }, { timestamps: true });
 
-// Индексы
 groupSchema.index({ name: 'text' });
 groupSchema.index({ 'members.user': 1 });
 

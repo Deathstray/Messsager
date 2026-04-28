@@ -1,30 +1,32 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '../utils/api';
+import { createContext, useContext, useState } from 'react';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+export function AuthProvider({ children }) {
+    const stored = (() => {
+        try {
+            const t = localStorage.getItem('token');
+            const u = localStorage.getItem('user');
+            return { token: t || null, user: u ? JSON.parse(u) : null };
+        } catch { return { token: null, user: null }; }
+    })();
 
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            api.get('/api/auth/me')
-                .then(data => {
-                    setUser(data.user);
-                    applyTheme(data.user.theme);
-                })
-                .catch(() => localStorage.removeItem('token'))
-                .finally(() => setLoading(false));
-        } else {
-            setLoading(false);
-        }
-    }, []);
+    const [token, setToken] = useState(stored.token);
+    const [user, setUser] = useState(stored.user);
 
-    const applyTheme = (theme) => {
-        document.documentElement.setAttribute('data-theme', theme || 'light');
-    };
+    function login(newToken, userData) {
+        localStorage.setItem('token', newToken);
+        localStorage.setItem('user', JSON.stringify(userData));
+        setToken(newToken);
+        setUser(userData);
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+    }
 
     function updateUser(data) {
         const u = { ...user, ...data };
@@ -35,28 +37,12 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('token', data.token);
         }
     }
-    const login = (token, userData) => {
-        localStorage.setItem('token', token);
-        setUser(userData);
-        applyTheme(userData.theme);
-    };
-
-    const logout = () => {
-        localStorage.removeItem('token');
-        setUser(null);
-        document.documentElement.setAttribute('data-theme', 'light');
-    };
-
-    const updateUser = (userData) => {
-        setUser(userData);
-        if (userData.theme) applyTheme(userData.theme);
-    };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
+        <AuthContext.Provider value={{ token, user, login, logout, updateUser }}>
             {children}
         </AuthContext.Provider>
     );
-};
+}
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() { return useContext(AuthContext); }

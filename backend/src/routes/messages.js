@@ -27,11 +27,7 @@ async function canSendToDm(chat, userId) {
 function parseScreenSession(raw) {
     if (!raw) return null;
     if (typeof raw === 'object') return raw;
-    try {
-        return JSON.parse(raw);
-    } catch {
-        return null;
-    }
+    try { return JSON.parse(raw); } catch { return null; }
 }
 
 router.get('/:chatId/messages', auth, async (req, res) => {

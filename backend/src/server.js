@@ -1,92 +1,79 @@
 require('dotenv').config();
-const express    = require('express');
-const http       = require('http');
+const express  = require('express');
+const cors     = require('cors');
+const http     = require('http');
+const path     = require('path');
+const jwt      = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const { Server } = require('socket.io');
-const cors       = require('cors');
-const jwt        = require('jsonwebtoken');
-const mongoose   = require('mongoose');
-const path       = require('path');
-const fs         = require('fs');
-
-const authRoutes    = require('./routes/auth');
-const userRoutes    = require('./routes/users');
-const chatRoutes    = require('./routes/chats');
-const messageRoutes = require('./routes/messages');
-const deleteRoutes  = require('./routes/messageDelete');
-
-const UPLOAD_DIR = path.join(__dirname, '../storage/uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const app    = express();
 const server = http.createServer(app);
-const io     = new Server(server, {
-    cors: { origin: process.env.CORS_ORIGIN || '*', methods: ['GET','POST','PUT','DELETE'] },
-});
+const PORT   = process.env.PORT || 3001;
 
-app.set('io', io);
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+// ── Middleware ────────────────────────────────────────────────────
+app.use(cors({ origin: '*' }));
 app.use(express.json());
-app.use('/uploads', express.static(UPLOAD_DIR));
 
-app.use('/api',          authRoutes);
-app.use('/api/users',    userRoutes);
-app.use('/api/chats',    chatRoutes);
-app.use('/api/chats',    messageRoutes);
-app.use('/api/messages', deleteRoutes);
-app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
+// Статические файлы (загруженные изображения и документы)
+app.use('/uploads', express.static(path.join(__dirname, '../storage/uploads')));
 
-const onlineUsers = new Map();
-app.get('/api/online', (_, res) => res.json([...onlineUsers.keys()]));
+// ── Роуты ─────────────────────────────────────────────────────────
+app.use('/api',          require('./routes/auth'));
+app.use('/api/chats',    require('./routes/chats'));
+app.use('/api/chats',    require('./routes/messages'));
+app.use('/api/messages', require('./routes/messageActions'));
+app.use('/api/users',    require('./routes/users'));
 
+// ── Socket.IO ────────────────────────────────────────────────────
+const io = new Server(server, {
+    cors: { origin: '*' },
+});
+app.set('io', io);
+
+// Аутентификация сокета по JWT-токену
 io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Нет токена'));
-    try { socket.user = jwt.verify(token, process.env.JWT_SECRET); next(); }
-    catch { next(new Error('Недействительный токен')); }
+    try {
+        socket.user = jwt.verify(token, process.env.JWT_SECRET);
+        next();
+    } catch {
+        next(new Error('Неверный токен'));
+    }
 });
 
-io.on('connection', (socket) => {
+io.on('connection', socket => {
     const userId = String(socket.user.id);
+    // Каждый пользователь входит в свою "комнату" — туда приходят события
     socket.join(`user:${userId}`);
-    onlineUsers.set(userId, socket.id);
-    io.emit('user:online', userId);
 
-    socket.on('typing:start', async ({ chatId }) => {
-        try {
-            const chat = await require('./models/Chat').findById(chatId).select('members');
-            chat?.members.forEach(m => {
-                const id = String(m);
-                if (id !== userId) io.to(`user:${id}`).emit('typing:start', { userId, chatId, name: socket.user.display_name });
-            });
-        } catch {}
+    // Сообщаем всем: этот пользователь онлайн
+    socket.broadcast.emit('user:online', userId);
+
+    // Отправляем новому пользователю список онлайн-пользователей
+    const onlineIds = [...io.sockets.sockets.values()]
+        .filter(s => s.user)
+        .map(s => String(s.user.id));
+    socket.emit('users:online_list', [...new Set(onlineIds)]);
+
+    socket.on('disconnect', () => {
+        io.emit('user:offline', userId);
     });
-
-    socket.on('typing:stop', async ({ chatId }) => {
-        try {
-            const chat = await require('./models/Chat').findById(chatId).select('members');
-            chat?.members.forEach(m => {
-                const id = String(m);
-                if (id !== userId) io.to(`user:${id}`).emit('typing:stop', { userId, chatId });
-            });
-        } catch {}
-    });
-
-    socket.on('disconnect', () => { onlineUsers.delete(userId); io.emit('user:offline', userId); });
 });
 
-// Фронтенд (для Railway)
-const distPath = path.join(__dirname, '../../frontend/dist');
-if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
-}
+// ── Подключение к MongoDB и запуск сервера ────────────────────────
+const MONGO_URL = process.env.MONGO_URL || 'mongodb://127.0.0.1:27017/messengerdb';
 
-const PORT = process.env.PORT || 3001;
-if (!process.env.MONGO_URL) { console.error('❌ MONGO_URL не задан'); process.exit(1); }
-
-mongoose.connect(process.env.MONGO_URL, { family: 4 })
+mongoose.connect(MONGO_URL)
     .then(() => {
         console.log('✅ MongoDB подключена');
-        server.listen(PORT, '0.0.0.0', () => console.log(`✅ Сервер: http://localhost:${PORT}`));
+        // Слушаем на всех интерфейсах (0.0.0.0) — обязательно для доступа по локалке
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Сервер запущен на 0.0.0.0:${PORT}`);
+        });
     })
-    .catch(err => { console.error('❌', err.message); process.exit(1); });
+    .catch(err => {
+        console.error('❌ Ошибка MongoDB:', err.message);
+        process.exit(1);
+    });

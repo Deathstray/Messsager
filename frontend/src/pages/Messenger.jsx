@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../api';
+import { useTheme } from '../context/ThemeContext';
+import { apiFetch, SOCKET_URL } from '../api';
 import ChatList   from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
 
 export default function Messenger() {
     const { token, logout } = useAuth();
+    const { colors } = useTheme();
     const navigate = useNavigate();
 
     const [chats,      setChats]      = useState([]);
@@ -15,18 +17,24 @@ export default function Messenger() {
     const [socket,     setSocket]     = useState(null);
     const [online,     setOnline]     = useState(new Set());
 
-    // Передаём события вниз через пропсы — надёжнее чем socket внутри ChatWindow
     const [incomingMsg,      setIncomingMsg]      = useState(null);
     const [incomingReaction, setIncomingReaction] = useState(null);
     const [clearedChatId,    setClearedChatId]    = useState(null);
 
-    // Мобильный режим: показываем либо список, либо чат
-    const [mobileView, setMobileView] = useState('list'); // 'list' | 'chat'
+    // ── Unread counts  { chatId: number } ──────────────────────
+    const [unread, setUnread] = useState({});
+
+    const [mobileView, setMobileView] = useState('list');
+
+    // Update document title when unread changes
+    useEffect(() => {
+        const total = Object.values(unread).reduce((s, n) => s + n, 0);
+        document.title = total > 0 ? `(${total}) Messsager` : 'Messsager';
+    }, [unread]);
 
     useEffect(() => {
         if (!token) return;
-        const url = import.meta.env.VITE_API_URL || window.location.origin;
-        const s = io(url, { auth: { token } });
+        const s = io(SOCKET_URL, { auth: { token } });
 
         s.on('connect',       () => console.log('✅ Socket'));
         s.on('connect_error', e  => console.error('Socket:', e.message));
@@ -59,10 +67,19 @@ export default function Messenger() {
                 .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
             );
             setIncomingMsg({ chatId, message, ts: Date.now() });
+
+            // Increment unread if this chat is not active
+            setActiveChat(prev => {
+                if (prev?._id !== chatId) {
+                    setUnread(u => ({ ...u, [chatId]: (u[chatId] || 0) + 1 }));
+                }
+                return prev;
+            });
         });
 
         s.on('message:reaction', data => setIncomingReaction({ ...data, ts: Date.now() }));
 
+        s.on('users:online_list', ids => setOnline(new Set(ids)));
         s.on('user:online',  id => setOnline(prev => new Set([...prev, id])));
         s.on('user:offline', id => setOnline(prev => { const n = new Set(prev); n.delete(id); return n; }));
 
@@ -83,30 +100,31 @@ export default function Messenger() {
     function handleNewChat(chat) {
         setChats(prev => prev.find(c => c._id === chat._id) ? prev : [chat, ...prev]);
         setActiveChat(chat);
+        setUnread(u => { const n = { ...u }; delete n[chat._id]; return n; });
         setMobileView('chat');
     }
 
     function handleSelectChat(chat) {
         setActiveChat(chat);
+        // Clear unread for this chat
+        setUnread(u => { const n = { ...u }; delete n[chat._id]; return n; });
         setMobileView('chat');
     }
 
-    function handleBack() {
-        setMobileView('list');
-    }
+    function handleBack() { setMobileView('list'); }
 
     function handleRemoveChat(chatId) {
         setChats(prev => prev.filter(c => c._id !== chatId));
+        setUnread(u => { const n = { ...u }; delete n[chatId]; return n; });
         if (activeChat?._id === chatId) { setActiveChat(null); setMobileView('list'); }
     }
 
     return (
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: colors.bgApp }}>
             <div style={{
                 display: mobileView === 'chat' ? 'none' : 'flex',
                 flexDirection: 'column',
                 width: 300, minWidth: 260,
-                // На десктопе всегда видим
                 ...(window.innerWidth > 640 ? { display: 'flex' } : {}),
             }}
             className="sidebar-panel">
@@ -118,6 +136,7 @@ export default function Messenger() {
                     onLogout={handleLogout}
                     online={online}
                     onRemoveChat={handleRemoveChat}
+                    unread={unread}
                 />
             </div>
             <div style={{

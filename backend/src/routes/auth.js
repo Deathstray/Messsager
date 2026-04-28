@@ -62,7 +62,6 @@ router.post('/login', async (req, res) => {
 
         res.json({ token: signToken(user), user: safeUser(user) });
     } catch (err) {
-        console.error('[AUTH_ERROR]', err);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });

@@ -363,6 +363,10 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
     }, [clearedChatId, chat?._id]);
 
     useEffect(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [dateGroups]);
+
+    useEffect(() => {
         if (!socket || !chat) return;
         const onDel = ({ chatId, messageId }) => {
             if (chatId !== chat._id) return;

@@ -147,6 +147,7 @@ router.post('/:id/join', auth, async (req, res) => {
             .populate('members', MEMBER_POP)
             .populate('created_by', MEMBER_POP)
             .populate('admins', MEMBER_POP);
+        const populated = await chat.populate('members', MEMBER_POP).populate('created_by', MEMBER_POP).populate('admins', MEMBER_POP);
         req.app.get('io').to(`user:${req.user.id}`).emit('chat:new', populated);
         res.json(populated);
     } catch (err) {
@@ -186,6 +187,8 @@ router.put('/:id/members', auth, async (req, res) => {
 
 router.post('/:id/avatar', auth, upload.single('avatar'), async (req, res) => {
     try {
+        const chat = await Chat.findById(req.params.id);
+        if (!req.file) return res.status(400).json({ error: 'Файл не передан' });
         const chat = await Chat.findById(req.params.id);
         if (!chat) return res.status(404).json({ error: 'Чат не найден' });
         if (!isCreator(chat, req.user.id)) return res.status(403).json({ error: 'Нет доступа' });

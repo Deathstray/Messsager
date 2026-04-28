@@ -30,3 +30,4 @@ export function fileUrl(filename) {
 }
 
 export default { apiFetch, fileUrl, SOCKET_URL };
+export const api = { apiFetch, fileUrl, SOCKET_URL };

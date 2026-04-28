@@ -1,13 +1,3 @@
-// ─────────────────────────────────────────────
-//  Icons.jsx  —  все иконки проекта
-//  Замени любую функцию своей картинкой:
-//
-//  <img src="/icons/moon.svg" width={20} height={20} />
-//  или импортируй PNG:
-//  import moonPng from '/icons/moon.png';
-//  <img src={moonPng} width={20} height={20} />
-// ─────────────────────────────────────────────
-
 
 const base = {
     display: 'flex',
@@ -16,7 +6,6 @@ const base = {
     flexShrink: 0,
 };
 
-// ── Луна (тёмная тема) ──────────────────────────────────────────
 export function IconMoon({ size = 20, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -26,7 +15,6 @@ export function IconMoon({ size = 20, color = 'currentColor' }) {
     );
 }
 
-// ── Солнце (светлая тема) ───────────────────────────────────────
 export function IconSun({ size = 20, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -44,7 +32,6 @@ export function IconSun({ size = 20, color = 'currentColor' }) {
     );
 }
 
-// ── Создать группу ──────────────────────────────────────────────
 export function IconNewGroup({ size = 20, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -57,7 +44,6 @@ export function IconNewGroup({ size = 20, color = 'currentColor' }) {
     );
 }
 
-// ── Аватар группы (вместо 👥) ───────────────────────────────────
 export function IconGroupAvatar({ size = 24, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -70,7 +56,6 @@ export function IconGroupAvatar({ size = 24, color = 'currentColor' }) {
     );
 }
 
-// ── Избранное ───────────────────────────────────────────────────
 export function IconBookmark({ size = 20, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -80,7 +65,6 @@ export function IconBookmark({ size = 20, color = 'currentColor' }) {
     );
 }
 
-// ── Выйти ───────────────────────────────────────────────────────
 export function IconLogout({ size = 20, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -92,7 +76,6 @@ export function IconLogout({ size = 20, color = 'currentColor' }) {
     );
 }
 
-// ── Отправить ───────────────────────────────────────────────────
 export function IconSend({ size = 18, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -103,7 +86,6 @@ export function IconSend({ size = 18, color = 'currentColor' }) {
     );
 }
 
-// ── Прикрепить файл ─────────────────────────────────────────────
 export function IconAttach({ size = 22, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -113,7 +95,6 @@ export function IconAttach({ size = 22, color = 'currentColor' }) {
     );
 }
 
-// ── Поиск ───────────────────────────────────────────────────────
 export function IconSearch({ size = 16, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -124,7 +105,6 @@ export function IconSearch({ size = 16, color = 'currentColor' }) {
     );
 }
 
-// ── Назад ───────────────────────────────────────────────────────
 export function IconBack({ size = 22, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -134,7 +114,6 @@ export function IconBack({ size = 22, color = 'currentColor' }) {
     );
 }
 
-// ── Камера (загрузка аватара) ───────────────────────────────────
 export function IconCamera({ size = 14, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -145,7 +124,6 @@ export function IconCamera({ size = 14, color = 'currentColor' }) {
     );
 }
 
-// ── Удалить / Корзина ───────────────────────────────────────────
 export function IconTrash({ size = 14, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -159,7 +137,6 @@ export function IconTrash({ size = 14, color = 'currentColor' }) {
     );
 }
 
-// ── Ответить ────────────────────────────────────────────────────
 export function IconReply({ size = 16, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -170,7 +147,6 @@ export function IconReply({ size = 16, color = 'currentColor' }) {
     );
 }
 
-// ── Переслать ───────────────────────────────────────────────────
 export function IconForward({ size = 16, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -181,7 +157,6 @@ export function IconForward({ size = 16, color = 'currentColor' }) {
     );
 }
 
-// ── Копировать ──────────────────────────────────────────────────
 export function IconCopy({ size = 16, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -192,7 +167,6 @@ export function IconCopy({ size = 16, color = 'currentColor' }) {
     );
 }
 
-// ── В избранное (звезда) ────────────────────────────────────────
 export function IconStar({ size = 16, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -202,7 +176,6 @@ export function IconStar({ size = 16, color = 'currentColor' }) {
     );
 }
 
-// ── Закрыть / X ─────────────────────────────────────────────────
 export function IconX({ size = 16, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -213,7 +186,6 @@ export function IconX({ size = 16, color = 'currentColor' }) {
     );
 }
 
-// ── Профиль / Пользователь ──────────────────────────────────────
 export function IconUser({ size = 20, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -224,7 +196,6 @@ export function IconUser({ size = 20, color = 'currentColor' }) {
     );
 }
 
-// ── Публичная группа / Глобус ───────────────────────────────────
 export function IconGlobe({ size = 14, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -236,7 +207,6 @@ export function IconGlobe({ size = 14, color = 'currentColor' }) {
     );
 }
 
-// ── Приватная группа / Замок ────────────────────────────────────
 export function IconLock({ size = 14, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -247,7 +217,6 @@ export function IconLock({ size = 14, color = 'currentColor' }) {
     );
 }
 
-// ── Чат (пустое состояние) ──────────────────────────────────────
 export function IconChat({ size = 64, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -257,7 +226,6 @@ export function IconChat({ size = 64, color = 'currentColor' }) {
     );
 }
 
-// ── Сохранённые сообщения / Закладка ───────────────────────────
 export function IconSaved({ size = 20, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill={color} stroke="none">
@@ -266,7 +234,6 @@ export function IconSaved({ size = 20, color = 'currentColor' }) {
     );
 }
 
-// ── Изображение (превью файла) ──────────────────────────────────
 export function IconImage({ size = 22, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -278,7 +245,6 @@ export function IconImage({ size = 22, color = 'currentColor' }) {
     );
 }
 
-// ── Видео (превью файла) ────────────────────────────────────────
 export function IconVideo({ size = 22, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -289,7 +255,6 @@ export function IconVideo({ size = 22, color = 'currentColor' }) {
     );
 }
 
-// ── Файл (общий) ────────────────────────────────────────────────
 export function IconFile({ size = 22, color = 'currentColor' }) {
     return (
         <svg style={base} width={size} height={size} viewBox="0 0 24 24" fill="none"

@@ -23,6 +23,14 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.set('io', io);
 app.use(cors());
+app.use(express.json());
+app.use('/uploads', express.static(uploadDir));
+app.use('/api', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/chats', messageRoutes);
+app.use('/api/messages', messageActions);
+app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(uploadDir));
@@ -71,6 +79,7 @@ io.use((socket, next) => {
 });
 
 io.on('connection', (socket) => {
+io.on('connection', socket => {
     const userId = String(socket.user.id);
     socket.join(`user:${userId}`);
     onlineUsers.set(userId, socket.id);
@@ -214,6 +223,9 @@ io.on('connection', (socket) => {
         io.emit('user:offline', userId);
         require('./models/User').findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() }).catch(() => {});
         if (socket.currentRoom) io.to(socket.currentRoom).emit('screenshare:stopped');
+    socket.on('disconnect', () => {
+        onlineUsers.delete(userId);
+        io.emit('user:offline', userId);
         for (const [sessionId, session] of [...screenSessions.entries()]) {
             if (session.hostSocketId === socket.id) {
                 cleanupScreenSession(sessionId, 'host_left');

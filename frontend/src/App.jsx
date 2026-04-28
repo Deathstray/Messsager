@@ -5,9 +5,14 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Messenger from './pages/Messenger';
 
-function Guard({ children }) {
+function PrivateRoute({ children }) {
     const { token } = useAuth();
     return token ? children : <Navigate to="/login" replace />;
+}
+
+function GuestRoute({ children }) {
+    const { token } = useAuth();
+    return !token ? children : <Navigate to="/" replace />;
 }
 
 function GuestGuard({ children }) {
@@ -17,6 +22,18 @@ function GuestGuard({ children }) {
 
 export default function App() {
     return (
+        <ThemeProvider>
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
+                    <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+                    <Route path="/"         element={<PrivateRoute><Messenger /></PrivateRoute>} />
+                    <Route path="*"         element={<Navigate to="/" />} />
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
+        </ThemeProvider>
         <ThemeProvider>
             <AuthProvider>
                 <BrowserRouter>

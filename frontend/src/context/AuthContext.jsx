@@ -26,6 +26,15 @@ export const AuthProvider = ({ children }) => {
         document.documentElement.setAttribute('data-theme', theme || 'light');
     };
 
+    function updateUser(data) {
+        const u = { ...user, ...data };
+        setUser(u);
+        localStorage.setItem('user', JSON.stringify(u));
+        if (data?.token) {
+            setToken(data.token);
+            localStorage.setItem('token', data.token);
+        }
+    }
     const login = (token, userData) => {
         localStorage.setItem('token', token);
         setUser(userData);

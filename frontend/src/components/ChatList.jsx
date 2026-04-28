@@ -62,10 +62,12 @@ function ChatAvatar({ chat, myId, size = 40 }) {
     }
 
     // GROUP
+
     if (chat.avatar) return (
         <img src={fileUrl(chat.avatar)} alt=""
             style={{ width: size, height: size, borderRadius: size * 0.28, objectFit: 'cover', flexShrink: 0 }} />
     );
+
 
     // Заглушка группы — красивый градиент + иконка людей
     return (
@@ -87,25 +89,34 @@ function ProfileModal({ onClose }) {
     const { colors } = useTheme();
     const [name, setName] = useState(user?.display_name || '');
     const [busy, setBusy] = useState(false);
+    const { colors } = useTheme();
     const fileRef = useRef(null);
-
-    async function saveName() {
-        if (!name.trim()) return;
-        setBusy(true);
-        try {
-            const u = await apiFetch('/api/users/profile', { method: 'PUT', body: JSON.stringify({ display_name: name }) }, token);
-            updateUser({ display_name: u.display_name });
-            onClose();
-        } catch (e) { alert(e.message); }
-        finally { setBusy(false); }
-    }
+    const [busy, setBusy] = useState(false);
 
     async function uploadAvatar(file) {
-        const fd = new FormData(); fd.append('avatar', file);
+        const fd = new FormData();
+        fd.append('avatar', file);
         try {
             const u = await apiFetch('/api/users/avatar', { method: 'POST', body: fd }, token);
-            updateUser({ avatar: u.avatar });
-        } catch (e) { alert(e.message); }
+            updateUser(u);
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+    async function changeName() {
+        const next = prompt('Новое имя', user?.display_name || '');
+        if (!next?.trim()) return;
+        setBusy(true);
+        try {
+            const u = await apiFetch('/api/users/profile', { method: 'PUT', body: JSON.stringify({ display_name: next.trim() }) }, token);
+            updateUser(u);
+            onClose();
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            setBusy(false);
+        }
     }
 
     const mo = getMo(colors);
@@ -127,12 +138,16 @@ function ProfileModal({ onClose }) {
                     </div>
                     <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files[0] && uploadAvatar(e.target.files[0])} />
                     <div style={{ fontSize: 13, color: colors.textMuted }}>@{user?.username}</div>
+                    <div style={{ fontSize: 13, color: colors.textMuted }}>{user?.display_name}</div>
                 </div>
                 <label style={mo.label}>Отображаемое имя</label>
                 <input className="input-focus" style={mo.input} value={name} onChange={e => setName(e.target.value)} />
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                     <button style={mo.btnSec} onClick={onClose}>Отмена</button>
                     <button style={mo.btnPri} className="send-btn-base" onClick={saveName} disabled={busy}>{busy ? '...' : 'Сохранить'}</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={mo.btnSec} onClick={onClose}>Закрыть</button>
+                    <button style={mo.btnPri} className="send-btn-base" onClick={changeName} disabled={busy}>{busy ? '...' : 'Изменить имя'}</button>
                 </div>
             </div>
         </div>
@@ -183,6 +198,8 @@ function CreateGroupModal({ onClose, onCreated }) {
 
                 {/* Аватар группы */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
                     <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileRef.current?.click()}>
                         {grpAvatar
                             ? <img src={URL.createObjectURL(grpAvatar)} alt="" style={{ width: 72, height: 72, borderRadius: 20, objectFit: 'cover' }} />
@@ -198,6 +215,7 @@ function CreateGroupModal({ onClose, onCreated }) {
                 </div>
 
                 <input className="input-focus" style={mo.input} placeholder="Название группы" value={name} onChange={e => setName(e.target.value)} />
+
 
                 {/* Тип */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -223,7 +241,7 @@ function CreateGroupModal({ onClose, onCreated }) {
                             <Avatar user={u} size={32} />
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 14, fontWeight: 500, color: colors.textPrimary }}>{u.display_name}</div>
-                                <div style={{ fontSize: 11, color: colors.textMuted }}>@{u.username}</div>
+                                <div style={{ fontSize: 11, color: colors.textMuted }}>{u.display_name}</div>
                             </div>
                             {selected.includes(u._id) && (
                                 <div style={{ width: 20, height: 20, borderRadius: '50%', background: colors.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -243,6 +261,7 @@ function CreateGroupModal({ onClose, onCreated }) {
 }
 
 // ── ChatList ──────────────────────────────────────────────────────
+export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogout, online, onRemoveChat, unread = {} }) {
 export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogout, online, onRemoveChat, unread = {} }) {
     const { user, token } = useAuth();
     const { colors } = useTheme();
@@ -329,7 +348,9 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
     function lastPreview(chat) {
         const lm = chat.last_message;
         if (!lm) return 'Нет сообщений';
-        const txt = lm.text || (lm.files?.length ? '📎 Файл' : lm.forwarded_from ? '↪ Пересланное' : '');
+        const txt = lm.kind === 'screen_invite'
+            ? '📺 Демонстрация экрана'
+            : lm.text || (lm.files?.length ? '📎 Файл' : lm.forwarded_from ? '↪ Пересланное' : '');
         if (chat.type === 'dm' || chat.type === 'saved') return txt;
         return `${lm.from_user?.display_name?.split(' ')[0] || ''}: ${txt}`;
     }
@@ -339,14 +360,35 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
     return (
         <div style={s.wrap}>
             {/* ── Шапка ── */}
+
             <div style={s.header}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', flex: 1, minWidth: 0 }} onClick={() => setShowProfile(true)}>
                     <Avatar user={user} size={36} />
                     <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.2, color: colors.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.display_name}</div>
-                        <div style={{ fontSize: 11, color: colors.textMuted }}>@{user?.username}</div>
+                        <div style={{ fontSize: 11, color: colors.textMuted }}>{user?.display_name}</div>
                     </div>
                 </div>
+
+
+                <IconBtn onClick={() => setShowPanel(p => !p)} title="Настройка визуала" colors={colors}>
+                    <IconPalette size={17} color={colors.textSecondary} />
+                </IconBtn>
+
+
+                <IconBtn onClick={() => setShowCreate(true)} title="Создать группу" colors={colors}>
+                    <IconNewGroup size={18} color={colors.textSecondary} />
+                </IconBtn>
+
+
+                <IconBtn onClick={openSaved} title="Избранное" colors={colors}>
+                    <IconBookmark size={17} color={colors.textSecondary} />
+                </IconBtn>
+
+
+                <IconBtn onClick={onLogout} title="Выйти" colors={colors}>
+                    <IconLogout size={17} color={colors.textSecondary} />
+                </IconBtn>
 
                 {/* Настройка визуала */}
                 <IconBtn onClick={() => setShowPanel(p => !p)} title="Настройка визуала" colors={colors}>
@@ -384,6 +426,21 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
                         onChange={e => setQuery(e.target.value)}
                     />
                 </div>
+
+            <div style={{ padding: '8px 12px 6px', borderBottom: `1px solid ${colors.border}` }}>
+                <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                        <IconSearch size={15} color={colors.textMuted} />
+                    </div>
+                    <input
+                        className="input-focus"
+                        style={{ ...s.searchInput, paddingLeft: 34 }}
+                        placeholder="Поиск людей и групп..."
+                        value={tab === 'chats' ? '' : query}
+                        onFocus={() => { setTab('search'); setQuery(''); }}
+                        onChange={e => setQuery(e.target.value)}
+                    />
+                </div>
                 {tab !== 'chats' && (
                     <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                         <TabPill active={tab === 'search'} onClick={() => setTab('search')} colors={colors}>
@@ -400,6 +457,7 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
             </div>
 
             {/* ── Поиск людей ── */}
+
             {tab === 'search' && (
                 <div style={s.list}>
                     {users.length === 0 && <div style={s.empty}>Нет пользователей</div>}
@@ -408,12 +466,13 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
                             <Avatar user={u} size={40} />
                             <div>
                                 <div style={{ fontWeight: 600, fontSize: 14, color: colors.textPrimary }}>{u.display_name}</div>
-                                <div style={{ fontSize: 12, color: colors.textMuted }}>@{u.username}</div>
+                                <div style={{ fontSize: 12, color: colors.textMuted }}>{u.display_name}</div>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
+
 
             {/* ── Публичные группы ── */}
             {tab === 'public' && (
@@ -443,6 +502,7 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
             )}
 
             {/* ── Список чатов ── */}
+
             {tab === 'chats' && (
                 <div style={s.list}>
                     {chats.map((chat, idx) => {
@@ -489,6 +549,7 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
             )}
 
             {/* ── Контекст-меню ── */}
+
             {ctxChat && (
                 <div ref={ctxRef} className="card-anim" style={{ position: 'fixed', left: ctxChat.x, top: ctxChat.y, zIndex: 500, background: colors.bgContextMenu, borderRadius: 12, boxShadow: colors.shadow, minWidth: 170, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
                     <CtxItem icon={<IconTrash size={15} color={colors.textContextItem} />} label="Очистить чат" colors={colors} onClick={() => clearChat(ctxChat.chat._id)} />
@@ -504,6 +565,28 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
+function IconBtn({ onClick, title, children, colors }) {
+    const [hov, setHov] = useState(false);
+    return (
+        <button onClick={onClick} title={title}
+            className="icon-btn-base"
+            onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+            style={{ background: hov ? colors.bgHover : 'none', border: 'none', cursor: 'pointer', width: 34, height: 34, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {children}
+        </button>
+    );
+}
+
+function TabPill({ children, active, onClick, colors }) {
+    return (
+        <button onClick={onClick}
+            style={{ background: active ? colors.accentLight : colors.bgPill, border: active ? `1px solid ${colors.accentLight}` : '1px solid transparent', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: active ? colors.accent : colors.textSecondary, fontWeight: active ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {children}
+        </button>
+    );
+}
+
+function CtxItem({ icon, label, onClick, red, colors }) {
 function IconBtn({ onClick, title, children, colors }) {
     const [hov, setHov] = useState(false);
     return (

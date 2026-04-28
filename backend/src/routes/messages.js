@@ -1,162 +1,113 @@
-const router  = require('express').Router();
-const { auth }   = require('../middleware/auth');
+const router = require('express').Router();
+const { auth } = require('../middleware/auth');
 const { upload } = require('../middleware/upload');
-const Message    = require('../models/Message');
-const Chat       = require('../models/Chat');
+const Message = require('../models/Message');
+const Chat = require('../models/Chat');
+const User = require('../models/User');
 
 const POP = [
-    { path: 'from_user', select: 'display_name avatar_color username avatar' },
-    { path: 'reply_to',  populate: { path: 'from_user', select: 'display_name' } },
+    { path: 'from_user', select: 'display_name avatar_color avatar' },
+    { path: 'reply_to', populate: { path: 'from_user', select: 'display_name avatar_color avatar' } },
 ];
 
-// GET /api/chats/:chatId/messages
+function active(list, userId) {
+    return (list || []).find(x => String(x.user) === String(userId) && (!x.until || new Date(x.until).getTime() > Date.now()));
+}
+
+async function canSendToDm(chat, userId) {
+    const otherId = chat.members.map(String).find(id => id !== String(userId));
+    if (!otherId) return { ok: true };
+    const me = await User.findById(userId).select('blocked_users');
+    const other = await User.findById(otherId).select('blocked_users');
+    if (me?.blocked_users?.some(x => String(x.user) === otherId)) return { ok: false, error: 'Вы заблокировали этого пользователя' };
+    if (other?.blocked_users?.some(x => String(x.user) === String(userId))) return { ok: false, error: 'Пользователь заблокировал вас' };
+    return { ok: true };
+}
+
+function parseScreenSession(raw) {
+    if (!raw) return null;
+    if (typeof raw === 'object') return raw;
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+}
+
 router.get('/:chatId/messages', auth, async (req, res) => {
     try {
         const chat = await Chat.findOne({ _id: req.params.chatId, members: req.user.id });
         if (!chat) return res.status(403).json({ error: 'Нет доступа' });
-
-        const { before, limit = 100 } = req.query;
+        const before = req.query.before;
+        const limit = Number(req.query.limit || 100);
         const filter = { chat_id: req.params.chatId };
         if (before) filter.createdAt = { $lt: new Date(before) };
-
-        const messages = await Message.find(filter)
-            .populate(POP)
-            .sort({ createdAt: -1 })
-            .limit(parseInt(limit));
+        const messages = await Message.find(filter).populate(POP).sort({ createdAt: -1 }).limit(limit);
         res.json(messages.reverse());
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
 });
 
-// POST /api/chats/:chatId/messages
 router.post('/:chatId/messages', auth, upload.array('files', 20), async (req, res) => {
     try {
         const { chatId } = req.params;
-        const { text, reply_to } = req.body;
+        const text = String(req.body.text || '').trim();
+        const reply_to = req.body.reply_to || null;
+        const kind = String(req.body.kind || 'text');
+        const screenSession = parseScreenSession(req.body.screen_session);
         const files = req.files || [];
 
-        if (!text?.trim() && !files.length)
-            return res.status(400).json({ error: 'Пустое сообщение' });
+        if (!text && files.length === 0 && kind !== 'screen_invite') return res.status(400).json({ error: 'Пустое сообщение' });
 
         const chat = await Chat.findOne({ _id: chatId, members: req.user.id });
         if (!chat) return res.status(403).json({ error: 'Нет доступа' });
 
+        if (chat.type === 'dm') {
+            const access = await canSendToDm(chat, req.user.id);
+            if (!access.ok) return res.status(403).json({ error: access.error });
+        }
+
+        if (chat.type === 'group') {
+            const muted = active(chat.muted_users, req.user.id);
+            const banned = active(chat.banned_users, req.user.id);
+            if (banned) return res.status(403).json({ error: 'Вы заблокированы в этой группе' });
+            if (muted) return res.status(403).json({ error: 'Вы не можете писать в этой группе' });
+        }
+
         const message = await Message.create({
-            chat_id:   chatId,
+            chat_id: chatId,
             from_user: req.user.id,
-            text:      text?.trim() || null,
-            reply_to:  reply_to || null,
-            files:     files.map(f => ({
-                filename: f.filename, original_name: f.originalname,
-                size: f.size, mimetype: f.mimetype,
+            kind: kind === 'screen_invite' ? 'screen_invite' : 'text',
+            text: text || (kind === 'screen_invite' ? '📺 Демонстрация экрана' : null),
+            reply_to,
+            screen_session: kind === 'screen_invite' ? {
+                session_id: screenSession?.session_id || null,
+                status: screenSession?.status || 'waiting',
+                host_id: req.user.id,
+                viewer_id: null,
+            } : null,
+            files: files.map(f => ({
+                filename: f.filename,
+                original_name: f.originalname,
+                size: f.size,
+                mimetype: f.mimetype,
             })),
         });
 
         const populated = await message.populate(POP);
         await Chat.findByIdAndUpdate(chatId, { updatedAt: new Date() });
-        chat.members.forEach(uid => {
-            req.app.get('io').to(`user:${uid}`).emit('message:new', { chatId, message: populated });
-        });
-        res.status(201).json(populated);
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
-});
 
-// POST /api/messages/:id/react — добавить / убрать реакцию
-router.post('/:id/react', auth, async (req, res) => {
-    try {
-        const { emoji } = req.body;
-        if (!emoji) return res.status(400).json({ error: 'emoji обязателен' });
-
-        const msg = await Message.findById(req.params.id);
-        if (!msg) return res.status(404).json({ error: 'Не найдено' });
-
-        const chat = await Chat.findOne({ _id: msg.chat_id, members: req.user.id });
-        if (!chat) return res.status(403).json({ error: 'Нет доступа' });
-
-        const uid = req.user.id;
-        let grp = msg.reactions.find(r => r.emoji === emoji);
-        if (grp) {
-            const idx = grp.users.map(String).indexOf(uid);
-            if (idx >= 0) {
-                grp.users.splice(idx, 1);
-                if (grp.users.length === 0) msg.reactions = msg.reactions.filter(r => r.emoji !== emoji);
-            } else {
-                grp.users.push(uid);
-            }
-        } else {
-            msg.reactions.push({ emoji, users: [uid] });
+        for (const uid of chat.members.map(String)) {
+            req.app.get('io').to(`user:${uid}`).emit('message:new', { chatId: String(chatId), message: populated });
         }
 
-        await msg.save();
-        const populated = await msg.populate(POP);
-        chat.members.forEach(uid2 => {
-            req.app.get('io').to(`user:${uid2}`).emit('message:reaction', {
-                chatId: String(msg.chat_id),
-                messageId: String(msg._id),
-                reactions: populated.reactions,
-            });
-        });
-        res.json(populated);
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
-});
-
-// POST /api/messages/:id/forward
-router.post('/:id/forward', auth, async (req, res) => {
-    try {
-        const { chat_id } = req.body;
-        const orig = await Message.findById(req.params.id).populate('from_user', 'display_name');
-        if (!orig) return res.status(404).json({ error: 'Не найдено' });
-
-        const targetChat = await Chat.findOne({ _id: chat_id, members: req.user.id });
-        if (!targetChat) return res.status(403).json({ error: 'Нет доступа к чату' });
-
-        const origChat = await Chat.findById(orig.chat_id);
-        const fwd = await Message.create({
-            chat_id, from_user: req.user.id,
-            text: orig.text, files: orig.files,
-            forwarded_from: {
-                sender_name: orig.from_user?.display_name || '?',
-                chat_name: origChat?.name || '',
-            },
-        });
-        const populated = await fwd.populate(POP);
-        await Chat.findByIdAndUpdate(chat_id, { updatedAt: new Date() });
-        targetChat.members.forEach(uid => {
-            req.app.get('io').to(`user:${uid}`).emit('message:new', { chatId: chat_id, message: populated });
-        });
         res.status(201).json(populated);
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
-});
-
-// POST /api/messages/:id/save — сохранить в Избранное
-router.post('/:id/save', auth, async (req, res) => {
-    try {
-        const orig = await Message.findById(req.params.id).populate('from_user', 'display_name');
-        if (!orig) return res.status(404).json({ error: 'Не найдено' });
-
-        const POP2 = 'username display_name avatar_color avatar';
-        let saved = await Chat.findOne({ type: 'saved', members: { $all: [req.user.id], $size: 1 } });
-        if (!saved) {
-            saved = await Chat.create({ type: 'saved', name: 'Избранное', members: [req.user.id] });
-            const pop = await saved.populate('members', POP2);
-            req.app.get('io').to(`user:${req.user.id}`).emit('chat:new', pop);
-        }
-
-        const origChat = await Chat.findById(orig.chat_id);
-        const fwd = await Message.create({
-            chat_id: saved._id, from_user: req.user.id,
-            text: orig.text, files: orig.files,
-            forwarded_from: {
-                sender_name: orig.from_user?.display_name || '?',
-                chat_name: origChat?.name || '',
-            },
-        });
-        const populated = await fwd.populate(POP);
-        await Chat.findByIdAndUpdate(saved._id, { updatedAt: new Date() });
-        req.app.get('io').to(`user:${req.user.id}`).emit('message:new', {
-            chatId: String(saved._id), message: populated,
-        });
-        res.status(201).json(populated);
-    } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
 });
 
 module.exports = router;

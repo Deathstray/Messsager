@@ -107,6 +107,7 @@ export default function ThemePanel({ onClose }) {
         <div style={s.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
             <div ref={panelRef} style={s.panel} className="card-anim">
                 {/* Header */}
+
                 <div style={s.head}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                         <IconPalette size={18} color={colors.accent} />
@@ -116,6 +117,7 @@ export default function ThemePanel({ onClose }) {
                         <IconX size={16} color={colors.textMuted} />
                     </button>
                 </div>
+
 
                 {/* Тема */}
                 <div style={s.section}>
@@ -134,11 +136,13 @@ export default function ThemePanel({ onClose }) {
                                     boxShadow: themeId === t.id ? `0 0 0 3px ${colors.accentLight}` : 'none',
                                 }}>
                                 {/* Превью цветов */}
+
                                 <div style={{ display:'flex', gap:3, justifyContent:'center', marginBottom:5 }}>
                                     {t.preview.map((c, i) => (
                                         <div key={i} style={{ width:16, height:16, borderRadius:'50%', background:c, boxShadow:'0 1px 3px rgba(0,0,0,.15)' }} />
                                     ))}
                                 </div>
+
                                 {/* Mini chat preview */}
                                 <div style={{ background:t.colors.bgChat, borderRadius:6, padding:'4px 5px', marginBottom:3 }}>
                                     <div style={{ height:5, borderRadius:3, background:t.colors.bgMsgIn, marginBottom:3, width:'70%', boxShadow:'0 1px 2px rgba(0,0,0,.08)' }} />
@@ -151,6 +155,7 @@ export default function ThemePanel({ onClose }) {
                 </div>
 
                 {/* Шрифт */}
+
                 <div style={s.section}>
                     <div style={s.label}>
                         <span style={{ fontSize:13, fontWeight:800, color:colors.textMuted }}>A</span> Шрифт
@@ -165,6 +170,7 @@ export default function ThemePanel({ onClose }) {
                 </div>
 
                 {/* Размер текста */}
+
                 <div style={s.section}>
                     <div style={s.label}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill={colors.textMuted}><circle cx="12" cy="12" r="10"/></svg>
@@ -178,6 +184,7 @@ export default function ThemePanel({ onClose }) {
                         ))}
                     </div>
                 </div>
+
 
                 {/* Скругления */}
                 <div style={{ ...s.section, paddingBottom:18 }}>
@@ -193,6 +200,7 @@ export default function ThemePanel({ onClose }) {
                     </div>
 
                     {/* Preview bubble */}
+
                     <div style={{ background:colors.bgChat, borderRadius:12, padding:'10px 12px', display:'flex', gap:10, flexDirection:'column' }}>
                         <div style={{ alignSelf:'flex-start', background:colors.bgMsgIn, borderRadius:`var(--app-radius, 14px)`, borderBottomLeftRadius:4, padding:'8px 12px', fontSize:13, color:colors.textPrimary, boxShadow:'0 1px 4px rgba(0,0,0,.08)', maxWidth:'80%', fontFamily:'var(--app-font)', wordBreak:'break-word' }}>
                             Привет! Как дела? 👋

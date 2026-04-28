@@ -61,6 +61,7 @@ export default function EmojiPicker({ onSelect, onClose }) {
             border: `1px solid ${colors.border}`, borderRadius: 16,
             boxShadow: '0 8px 32px rgba(0,0,0,.18)', overflow: 'hidden', zIndex: 100,
         }}>
+
             {/* Search */}
             <div style={{ padding: '10px 12px 6px' }}>
                 <input
@@ -74,6 +75,7 @@ export default function EmojiPicker({ onSelect, onClose }) {
             </div>
 
             {/* Category tabs */}
+
             {!search && (
                 <div style={{ display: 'flex', overflowX: 'auto', padding: '0 8px 6px', gap: 2, borderBottom: `1px solid ${colors.border}` }}>
                     {CATEGORIES.map(c => (
@@ -93,11 +95,13 @@ export default function EmojiPicker({ onSelect, onClose }) {
             )}
 
             {/* Category title */}
+
             {!search && (
                 <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, padding: '6px 14px 2px', letterSpacing: '.05em', textTransform: 'uppercase' }}>
                     {current?.title}
                 </div>
             )}
+
 
             {/* Emoji grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 2, padding: '4px 8px 10px', maxHeight: 220, overflowY: 'auto' }}>

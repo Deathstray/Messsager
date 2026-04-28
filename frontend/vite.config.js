@@ -5,6 +5,7 @@ export default defineConfig({
     plugins: [react()],
     server: {
         host: '0.0.0.0',   // слушаем на всех интерфейсах — для доступа по LAN
+        host: '0.0.0.0',
         port: 3000,
         proxy: {
             // Все /api запросы уходят на бэкенд

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +8,7 @@ import ChatList from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
 
 export default function Messenger() {
-    const { token, logout } = useAuth();
+    const { user, token, logout } = useAuth();
     const { colors } = useTheme();
     const navigate = useNavigate();
     const [chats, setChats] = useState([]);
@@ -20,10 +20,12 @@ export default function Messenger() {
     const [clearedChatId, setClearedChatId] = useState(null);
     const [unread, setUnread] = useState({});
     const [mobileView, setMobileView] = useState('list');
+    const seenMessageIds = useRef(new Set());
+    const myId = String(user?.id || user?._id || '');
 
     useEffect(() => {
         const total = Object.values(unread).reduce((s, n) => s + n, 0);
-        document.title = total > 0 ? `(${total}) Messsager` : 'Messsager';
+        document.title = total > 0 ? `(${total}) TrinityChat` : 'TrinityChat';
     }, [unread]);
 
     useEffect(() => {
@@ -48,12 +50,19 @@ export default function Messenger() {
             setClearedChatId({ chatId, ts: Date.now() });
         });
         s.on('message:new', ({ chatId, message }) => {
+            const messageId = String(message?._id || '');
+            if (messageId && seenMessageIds.current.has(messageId)) return;
+            if (messageId) seenMessageIds.current.add(messageId);
+
+            const senderId = String(message?.from_user?._id || message?.from_user || message?.sender?._id || message?.sender || message?.senderId || '');
+            const isOwnMessage = senderId && senderId === myId;
+
             setChats(prev => prev
                 .map(c => c._id === chatId ? { ...c, last_message: message, updatedAt: new Date().toISOString() } : c)
                 .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
             setIncomingMsg({ chatId, message, ts: Date.now() });
             setActiveChat(prev => {
-                if (prev?._id !== chatId) setUnread(u => ({ ...u, [chatId]: (u[chatId] || 0) + 1 }));
+                if (prev?._id !== chatId && !isOwnMessage) setUnread(u => ({ ...u, [chatId]: (u[chatId] || 0) + 1 }));
                 return prev;
             });
         });

@@ -40,7 +40,7 @@ export default function Register() {
                 {theme.dark ? <IconSun size={18} color={colors.textSecondary}/> : <IconMoon size={18} color={colors.textSecondary}/>}
             </button>
             <div className="card-anim" style={{ background: colors.bgSidebar, borderRadius:16, padding:40, width:380, maxWidth:'95vw', boxShadow: colors.shadow, border:`1px solid ${colors.border}` }}>
-                <h1 style={{ margin:'0 0 4px', textAlign:'center', fontSize:28, color: colors.accent }}>💬 NexusChat</h1>
+                <h1 style={{ margin:'0 0 4px', textAlign:'center', fontSize:28, color: colors.accent }}>💬 TrinityChat</h1>
                 <h2 style={{ margin:'0 0 24px', textAlign:'center', fontWeight:500, color: colors.textSecondary, fontSize:17 }}>Регистрация</h2>
                 {error && <div style={{ background: colors.errBg, color: colors.errText, padding:'10px 14px', borderRadius:8, marginBottom:14, fontSize:14 }}>{error}</div>}
                 <form onSubmit={handleSubmit} autoComplete="on">

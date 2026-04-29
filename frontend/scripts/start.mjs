@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const viteBin = path.resolve(__dirname, '../node_modules/vite/bin/vite.js');
 
-console.log('Frontend started');
+console.log('TrinityChat frontend started');
 console.log(`Open locally: http://localhost:${port}`);
 console.log(`Open from other devices on the LAN: http://${lanIp}:${port}`);
 

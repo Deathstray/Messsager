@@ -449,9 +449,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
         socket?.emit('typing:stop', { chatId: chat._id });
         setSendAnim(true); setTimeout(() => setSendAnim(false), 250);
         try {
-            const msg = await apiFetch(`/api/chats/${chat._id}/messages`, { method: 'POST', body: fd }, token);
-            setMessages(prev => { const next = upsert(prev, msg); rebuild(next); return next; });
-            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            await apiFetch(`/api/chats/${chat._id}/messages`, { method: 'POST', body: fd }, token);
         } catch (err) { alert(err.message); }
     }
 

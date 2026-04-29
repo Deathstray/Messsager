@@ -1,12 +1,17 @@
+const host = window.location.hostname;
+const protocol = window.location.protocol;
+const port = window.location.port;
+const isLocalHost = host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host);
+
 const API_BASE = import.meta.env.VITE_API_URL?.trim()
     ? import.meta.env.VITE_API_URL.trim().replace(/\/$/, '')
-    : '';
-
-const SOCKET_HOST = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
+    : port === '3001'
+        ? ''
+        : `${protocol}//${host}:3001`;
 
 export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL?.trim()
     ? import.meta.env.VITE_SOCKET_URL.trim().replace(/\/$/, '')
-    : `${window.location.protocol}//${SOCKET_HOST}:3001`;
+    : `${protocol}//${host}:3001`;
 
 export async function apiFetch(path, options = {}, token = null) {
     const headers = { ...(options.headers || {}) };

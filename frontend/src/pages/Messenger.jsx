@@ -30,13 +30,11 @@ export default function Messenger() {
         if (!token) return;
         const s = io(SOCKET_URL, { auth: { token } });
 
-        s.on('connect', () => console.log('✅ Socket'));
-        s.on('connect_error', e => console.error('Socket:', e.message));
-
+        s.on('connect', () => console.log('Socket connected'));
+        s.on('connect_error', e => console.error('Socket error:', e.message));
         s.on('chat:new', chat => {
-            setChats(prev => prev.find(c => c._id === chat._id) ? prev : [chat, ...prev]);
+            setChats(prev => prev.some(c => c._id === chat._id) ? prev : [chat, ...prev]);
         });
-        s.on('chat:new', chat => setChats(prev => prev.some(c => c._id === chat._id) ? prev : [chat, ...prev]));
         s.on('chat:updated', updated => {
             setChats(prev => prev.map(c => c._id === updated._id ? { ...c, ...updated } : c));
             setActiveChat(prev => prev?._id === updated._id ? { ...prev, ...updated } : prev);
@@ -62,7 +60,12 @@ export default function Messenger() {
         s.on('message:reaction', data => setIncomingReaction({ ...data, ts: Date.now() }));
         s.on('users:online_list', ids => setOnline(new Set(ids)));
         s.on('user:online', id => setOnline(prev => new Set([...prev, id])));
-        s.on('user:offline', id => setOnline(prev => { const n = new Set(prev); n.delete(id); return n; }));
+        s.on('user:offline', id => setOnline(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        }));
+
         setSocket(s);
         return () => s.disconnect();
     }, [token]);
@@ -73,7 +76,9 @@ export default function Messenger() {
         } catch {}
     }, [token]);
 
-    useEffect(() => { loadChats(); }, [loadChats]);
+    useEffect(() => {
+        loadChats();
+    }, [loadChats]);
 
     function handleLogout() {
         socket?.disconnect();
@@ -84,13 +89,21 @@ export default function Messenger() {
     function handleNewChat(chat) {
         setChats(prev => prev.some(c => c._id === chat._id) ? prev : [chat, ...prev]);
         setActiveChat(chat);
-        setUnread(u => { const n = { ...u }; delete n[chat._id]; return n; });
+        setUnread(u => {
+            const next = { ...u };
+            delete next[chat._id];
+            return next;
+        });
         setMobileView('chat');
     }
 
     function handleSelectChat(chat) {
         setActiveChat(chat);
-        setUnread(u => { const n = { ...u }; delete n[chat._id]; return n; });
+        setUnread(u => {
+            const next = { ...u };
+            delete next[chat._id];
+            return next;
+        });
         setMobileView('chat');
     }
 
@@ -100,8 +113,11 @@ export default function Messenger() {
 
     function handleRemoveChat(chatId) {
         setChats(prev => prev.filter(c => c._id !== chatId));
-        setUnread(u => { const n = { ...u }; delete n[chatId]; return n; });
-        if (activeChat?._id === chatId) { setActiveChat(null); setMobileView('list'); }
+        setUnread(u => {
+            const next = { ...u };
+            delete next[chatId];
+            return next;
+        });
         if (activeChat?._id === chatId) {
             setActiveChat(null);
             setMobileView('list');
@@ -111,23 +127,6 @@ export default function Messenger() {
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640;
 
     return (
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: colors.bgApp }}>
-            <div style={{
-                display: mobileView === 'chat' && isMobile ? 'none' : 'flex',
-                flexDirection: 'column',
-                width: 300, minWidth: 260,
-                ...(isMobile ? { width: '100%', minWidth: 'unset' } : {}),
-            }} className="sidebar-panel">
-                <ChatList
-                    chats={chats}
-                    activeId={activeChat?._id}
-                    onSelect={handleSelectChat}
-                    onNewChat={handleNewChat}
-                    onLogout={handleLogout}
-                    online={online}
-                    onRemoveChat={handleRemoveChat}
-                    unread={unread}
-                />
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: colors.bgApp }}>
             <div style={{ display: mobileView === 'chat' && isMobile ? 'none' : 'flex', flexDirection: 'column', width: 300, minWidth: 260, ...(isMobile ? { width: '100%', minWidth: 'unset' } : {}) }} className="sidebar-panel">
                 <ChatList chats={chats} activeId={activeChat?._id} onSelect={handleSelectChat} onNewChat={handleNewChat} onLogout={handleLogout} online={online} onRemoveChat={handleRemoveChat} unread={unread} />

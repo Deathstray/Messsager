@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { IconAttach, IconSend, IconBack, IconReply, IconForward, IconCopy, IconStar, IconTrash, IconChat, IconUser, IconGlobe, IconLock, IconCamera, IconGroupAvatar } from '../icons/Icons';
+import { IconAttach, IconSend, IconBack, IconReply, IconForward, IconCopy, IconStar, IconTrash, IconChat, IconGlobe, IconCamera, IconGroupAvatar } from '../icons/Icons';
 import EmojiPicker from './EmojiPicker';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -614,19 +614,9 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
                         {isSaved ? 'Сохранённые сообщения' : isGroup ? `${chat.members?.length || 0} участников` : isOnline ? '● В сети' : '○ Не в сети'}
                     </div>
                 </div>
-                {!isSaved && !isGroup && otherId && (
-                    <button type="button" className="icon-btn-base" onClick={() => setProfileId(otherId)} style={{ border: 'none', background: colors.bgPill, borderRadius: 10, width: 36, height: 36, cursor: 'pointer' }}>
-                        <IconUser size={18} color={colors.textSecondary} />
-                    </button>
-                )}
                 {isGroup && canOpenGroupPanel && (
                     <button type="button" className="icon-btn-base" onClick={() => setShowGroupPanel(true)} style={{ border: 'none', background: colors.bgPill, borderRadius: 10, width: 36, height: 36, cursor: 'pointer' }} title="Участники">
                         <IconGroupAvatar size={18} color={colors.textSecondary} />
-                    </button>
-                )}
-                {!isGroup && !isSaved && otherId && (
-                    <button type="button" className="icon-btn-base" onClick={async () => { await handleBlockToggle(otherId); setProfileId(otherId); }} style={{ border: 'none', background: colors.bgPill, borderRadius: 10, width: 36, height: 36, cursor: 'pointer' }} title="Блокировать">
-                        <IconLock size={16} color={colors.textSecondary} />
                     </button>
                 )}
             </div>

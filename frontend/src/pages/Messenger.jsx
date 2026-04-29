@@ -21,7 +21,12 @@ export default function Messenger() {
     const [unread, setUnread] = useState({});
     const [mobileView, setMobileView] = useState('list');
     const seenMessageIds = useRef(new Set());
+    const activeChatIdRef = useRef(null);
     const myId = String(user?.id || user?._id || '');
+
+    useEffect(() => {
+        activeChatIdRef.current = activeChat?._id ? String(activeChat._id) : null;
+    }, [activeChat?._id]);
 
     useEffect(() => {
         const total = Object.values(unread).reduce((s, n) => s + n, 0);
@@ -54,17 +59,30 @@ export default function Messenger() {
             if (messageId && seenMessageIds.current.has(messageId)) return;
             if (messageId) seenMessageIds.current.add(messageId);
 
-            const senderId = String(message?.from_user?._id || message?.from_user || message?.sender?._id || message?.sender || message?.senderId || '');
-            const isOwnMessage = senderId && senderId === myId;
+            const senderRaw = message?.from_user?._id || message?.from_user || message?.sender?._id || message?.sender || message?.senderId || '';
+            const senderId = String(senderRaw);
+            const isOwnMessage = senderId === myId;
+            const currentActiveChatId = activeChatIdRef.current;
 
             setChats(prev => prev
                 .map(c => c._id === chatId ? { ...c, last_message: message, updatedAt: new Date().toISOString() } : c)
                 .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
+
             setIncomingMsg({ chatId, message, ts: Date.now() });
-            setActiveChat(prev => {
-                if (prev?._id !== chatId && !isOwnMessage) setUnread(u => ({ ...u, [chatId]: (u[chatId] || 0) + 1 }));
-                return prev;
-            });
+
+            if (isOwnMessage) {
+                setUnread(u => {
+                    if (!u[chatId]) return u;
+                    const next = { ...u };
+                    delete next[chatId];
+                    return next;
+                });
+                return;
+            }
+
+            if (String(currentActiveChatId || '') !== String(chatId)) {
+                setUnread(u => ({ ...u, [chatId]: (u[chatId] || 0) + 1 }));
+            }
         });
         s.on('message:reaction', data => setIncomingReaction({ ...data, ts: Date.now() }));
         s.on('users:online_list', ids => setOnline(new Set(ids)));
@@ -96,6 +114,7 @@ export default function Messenger() {
     }
 
     function handleNewChat(chat) {
+        activeChatIdRef.current = String(chat._id);
         setChats(prev => prev.some(c => c._id === chat._id) ? prev : [chat, ...prev]);
         setActiveChat(chat);
         setUnread(u => {
@@ -107,6 +126,7 @@ export default function Messenger() {
     }
 
     function handleSelectChat(chat) {
+        activeChatIdRef.current = String(chat._id);
         setActiveChat(chat);
         setUnread(u => {
             const next = { ...u };
@@ -128,6 +148,7 @@ export default function Messenger() {
             return next;
         });
         if (activeChat?._id === chatId) {
+            activeChatIdRef.current = null;
             setActiveChat(null);
             setMobileView('list');
         }

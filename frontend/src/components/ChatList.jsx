@@ -14,11 +14,15 @@ function IconPalette({ size = 18, color = 'currentColor' }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
             stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="13.5" cy="6.5" r="1.5" fill={color} stroke="none"/>
-            <circle cx="17.5" cy="10.5" r="1.5" fill={color} stroke="none"/>
-            <circle cx="8.5" cy="7.5" r="1.5" fill={color} stroke="none"/>
-            <circle cx="6.5" cy="12.5" r="1.5" fill={color} stroke="none"/>
-            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+            <circle cx="12" cy="12" r="3.2" />
+            <path d="M12 3.5v2" />
+            <path d="M12 18.5v2" />
+            <path d="M3.5 12h2" />
+            <path d="M18.5 12h2" />
+            <path d="M6.1 6.1l1.4 1.4" />
+            <path d="M16.5 16.5l1.4 1.4" />
+            <path d="M17.9 6.1l-1.4 1.4" />
+            <path d="M7.5 16.5l-1.4 1.4" />
         </svg>
     );
 }
@@ -77,7 +81,7 @@ function ChatAvatar({ chat, myId, size = 40 }) {
     );
 }
 
-function ProfileModal({ onClose }) {
+function ProfileModal({ onClose, onOpenTheme }) {
     const { user, token, updateUser } = useAuth();
     const { colors } = useTheme();
     const fileRef = useRef(null);
@@ -129,9 +133,10 @@ function ProfileModal({ onClose }) {
                     <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files[0] && uploadAvatar(e.target.files[0])} />
                     <div style={{ fontSize: 13, color: colors.textMuted }}>{user?.display_name}</div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={mo.btnSec} onClick={onClose}>Закрыть</button>
+                <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
                     <button style={mo.btnPri} className="send-btn-base" onClick={changeName} disabled={busy}>{busy ? '...' : 'Изменить имя'}</button>
+                    <button style={mo.btnSec} onClick={onOpenTheme}>Настроить визуал</button>
+                    <button style={mo.btnSec} onClick={onClose}>Закрыть</button>
                 </div>
             </div>
         </div>
@@ -348,7 +353,7 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
                 </div>
 
                 
-                <IconBtn onClick={() => setShowPanel(p => !p)} title="Настройка визуала" colors={colors}>
+                <IconBtn onClick={() => setShowProfile(true)} title="Настройки" colors={colors}>
                     <IconPalette size={17} color={colors.textSecondary} />
                 </IconBtn>
 
@@ -497,7 +502,7 @@ export default function ChatList({ chats, activeId, onSelect, onNewChat, onLogou
 
             {showPanel   && <ThemePanel onClose={() => setShowPanel(false)} />}
             {showCreate  && <CreateGroupModal onClose={() => setShowCreate(false)}  onCreated={onNewChat} />}
-            {showProfile && <ProfileModal     onClose={() => setShowProfile(false)} />}
+            {showProfile && <ProfileModal onClose={() => setShowProfile(false)} onOpenTheme={() => { setShowProfile(false); setShowPanel(true); }} />}
         </div>
     );
 }

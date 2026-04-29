@@ -1,123 +1,155 @@
-const router = require('express').Router();
-const Group = require('../models/Group');
-const User = require('../models/User');
-const { auth } = require('../middleware/auth'); // твой middleware авторизации
+const router = require('express').Router()
+const Group = require('../models/Group')
+const User = require('../models/User')
+const { v4: uuidv4 } = require('uuid')
 
-// 🔧 Проверка: является ли пользователь админом/создателем группы
-const isGroupAdmin = async (groupId, userId) => {
-    const group = await Group.findById(groupId);
-    if (!group) return false;
-    const member = group.members.find(m => String(m.user) === String(userId));
-    return member && (member.role === 'admin' || member.role === 'creator');
-};
-
-// POST /api/groups/:id/kick — выгнать участника
-router.post('/:id/kick', auth, async (req, res) => {
+// Создать группу
+router.post('/create', async (req, res) => {
     try {
-        const { userId } = req.body;
-        const groupId = req.params.id;
-        const adminId = req.user.id;
+        const { name, description, creatorId, isPrivate } = req.body
+        const inviteCode = isPrivate ? uuidv4().slice(0, 8).toUpperCase() : null
 
-        if (!await isGroupAdmin(groupId, adminId)) {
-            return res.status(403).json({ error: 'Нет прав' });
-        }
+        const group = await Group.create({
+            name,
+            description,
+            creator: creatorId,
+            isPrivate,
+            inviteCode,
+            members: [
+                {
+                    user: creatorId,
+                    role: 'creator'
+                }
+            ]
+        })
 
-        const group = await Group.findById(groupId);
-        if (!group) return res.status(404).json({ error: 'Группа не найдена' });
-
-        // Нельзя кикнуть создателя
-        if (String(group.creator) === String(userId)) {
-            return res.status(400).json({ error: 'Нельзя выгнать создателя' });
-        }
-
-        group.members = group.members.filter(m => String(m.user) !== String(userId));
-        await group.save();
-
-        // Уведомление через сокет (опционально)
-        const io = req.app.get('io');
-        io.to(`group:${groupId}`).emit('group:member-kicked', { userId, groupId });
-
-        res.json({ success: true });
+        await group.populate('creator', '-password')
+        await group.populate('members.user', '-password')
+        
+        res.json(group)
     } catch (err) {
-        console.error('[GROUP_KICK_ERROR]', err);
-        res.status(500).json({ error: 'Ошибка сервера' });
+        console.error('Error creating group:', err)
+        res.status(500).json({ error: 'Error creating group' })
     }
-});
+})
 
-// POST /api/groups/:id/mute — замьютить участника
-router.post('/:id/mute', auth, async (req, res) => {
+// Получить все группы пользователя
+router.get('/user/:userId', async (req, res) => {
     try {
-        const { userId, minutes } = req.body; // minutes: 0 = навсегда
-        const groupId = req.params.id;
-        const adminId = req.user.id;
-
-        if (!await isGroupAdmin(groupId, adminId)) {
-            return res.status(403).json({ error: 'Нет прав' });
-        }
-
-        const group = await Group.findById(groupId);
-        if (!group) return res.status(404).json({ error: 'Группа не найдена' });
-
-        const member = group.members.find(m => String(m.user) === String(userId));
-        if (!member || member.role === 'creator') {
-            return res.status(400).json({ error: 'Нельзя мьютить создателя' });
-        }
-
-        member.mutedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : new Date('2099-12-31');
-        await group.save();
-
-        res.json({ success: true, mutedUntil: member.mutedUntil });
+        const groups = await Group.find({ 'members.user': req.params.userId })
+            .populate('creator', '-password')
+            .populate('members.user', '-password')
+            .sort({ createdAt: -1 })
+        
+        res.json(groups)
     } catch (err) {
-        console.error('[GROUP_MUTE_ERROR]', err);
-        res.status(500).json({ error: 'Ошибка сервера' });
+        res.status(500).json({ error: 'Error fetching groups' })
     }
-});
+})
 
-// POST /api/groups/:id/ban — забанить участника
-router.post('/:id/ban', auth, async (req, res) => {
+// Добавить участника в группу
+router.post('/:groupId/add-member', async (req, res) => {
     try {
-        const { userId, minutes } = req.body;
-        const groupId = req.params.id;
-        const adminId = req.user.id;
-
-        if (!await isGroupAdmin(groupId, adminId)) {
-            return res.status(403).json({ error: 'Нет прав' });
+        const { userId } = req.body
+        const group = await Group.findById(req.params.groupId)
+        
+        // Проверить, не в группе ли уже
+        const isMember = group.members.some(m => m.user.toString() === userId)
+        if (isMember) {
+            return res.status(400).json({ error: 'User already in group' })
         }
 
-        const group = await Group.findById(groupId);
-        if (!group) return res.status(404).json({ error: 'Группа не найдена' });
+        group.members.push({
+            user: userId,
+            role: 'member'
+        })
 
-        const member = group.members.find(m => String(m.user) === String(userId));
-        if (!member || member.role === 'creator') {
-            return res.status(400).json({ error: 'Нельзя банить создателя' });
-        }
-
-        member.bannedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : new Date('2099-12-31');
-        await group.save();
-
-        // Удаляем из активных участников (опционально)
-        // group.members = group.members.filter(m => String(m.user) !== String(userId));
-
-        res.json({ success: true, bannedUntil: member.bannedUntil });
+        await group.save()
+        await group.populate('members.user', '-password')
+        
+        res.json(group)
     } catch (err) {
-        console.error('[GROUP_BAN_ERROR]', err);
-        res.status(500).json({ error: 'Ошибка сервера' });
+        res.status(500).json({ error: 'Error adding member' })
     }
-});
+})
 
-// 🔧 Проверка мьюта/бана при отправке сообщения (добавь в routes/messages.js)
-// Перед сохранением сообщения:
-/*
-const group = await Group.findById(chatId);
-const member = group?.members?.find(m => String(m.user) === String(userId));
-if (member) {
-  if (member.bannedUntil && member.bannedUntil > new Date()) {
-    return res.status(403).json({ error: 'Вы забанены в этой группе' });
-  }
-  if (member.mutedUntil && member.mutedUntil > new Date()) {
-    return res.status(403).json({ error: 'Вы замьючены, попробуйте позже' });
-  }
-}
-*/
+// Выгнать из группы (KIK)
+router.post('/:groupId/kick/:userId', async (req, res) => {
+    try {
+        const group = await Group.findById(req.params.groupId)
+        group.members = group.members.filter(m => m.user.toString() !== req.params.userId)
+        
+        await group.save()
+        await group.populate('members.user', '-password')
+        
+        res.json(group)
+    } catch (err) {
+        res.status(500).json({ error: 'Error kicking member' })
+    }
+})
 
-module.exports = router;
+// Замьютить участника (MUTE)
+router.post('/:groupId/mute/:userId', async (req, res) => {
+    try {
+        const { hours } = req.body
+        const group = await Group.findById(req.params.groupId)
+        
+        const member = group.members.find(m => m.user.toString() === req.params.userId)
+        if (member) {
+            const muteUntil = new Date(Date.now() + hours * 60 * 60 * 1000)
+            member.mutedUntil = muteUntil
+        }
+        
+        await group.save()
+        await group.populate('members.user', '-password')
+        
+        res.json(group)
+    } catch (err) {
+        res.status(500).json({ error: 'Error muting member' })
+    }
+})
+
+// Забанить участника (BAN)
+router.post('/:groupId/ban/:userId', async (req, res) => {
+    try {
+        const { hours } = req.body
+        const group = await Group.findById(req.params.groupId)
+        
+        const member = group.members.find(m => m.user.toString() === req.params.userId)
+        if (member) {
+            const bannedUntil = new Date(Date.now() + hours * 60 * 60 * 1000)
+            member.bannedUntil = bannedUntil
+        }
+        
+        // Удалить из группы, если забанен
+        group.members = group.members.filter(m => {
+            if (m.user.toString() === req.params.userId && m.bannedUntil) {
+                return false
+            }
+            return true
+        })
+        
+        await group.save()
+        await group.populate('members.user', '-password')
+        
+        res.json(group)
+    } catch (err) {
+        res.status(500).json({ error: 'Error banning member' })
+    }
+})
+
+// Получить информацию о группе
+router.get('/:groupId', async (req, res) => {
+    try {
+        const group = await Group.findById(req.params.groupId)
+            .populate('creator', '-password')
+            .populate('members.user', '-password')
+        
+        if (!group) return res.status(404).json({ error: 'Group not found' })
+        res.json(group)
+    } catch (err) {
+        res.status(500).json({ error: 'Error fetching group' })
+    }
+})
+
+module.exports = router

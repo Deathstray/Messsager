@@ -70,14 +70,15 @@ input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px #fff inset !important; }
 .send-btn-base:hover:not(:disabled)  { transform: scale(1.1) rotate(-5deg); }
 .send-btn-base:active:not(:disabled) { transform: scale(0.9); }
 
+/* Убрали box-shadow контур — только смена цвета бордера */
+.input-focus { outline: none !important; }
 .input-focus:focus {
-    outline: none;
+    outline: none !important;
+    box-shadow: none !important;
     border-color: #7b1f3a !important;
-    box-shadow: 0 0 0 3px rgba(123,31,58,.12) !important;
 }
 [data-theme="dark"] .input-focus:focus {
     border-color: #d48fa6 !important;
-    box-shadow: 0 0 0 3px rgba(212,143,166,.15) !important;
 }
 
 @media (max-width: 640px) {

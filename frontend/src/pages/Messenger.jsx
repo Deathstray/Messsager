@@ -171,7 +171,7 @@ export default function Messenger() {
     }
 
     return (
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: colors.bgApp }}>
+        <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden', background: colors.bgApp }}>
             <div
                 style={{
                     display: mobileView === 'chat' && isMobile ? 'none' : 'flex',
@@ -198,7 +198,8 @@ export default function Messenger() {
                     flex: 1,
                     display: mobileView === 'list' && isMobile ? 'none' : 'flex',
                     flexDirection: 'column',
-                    minWidth: 0
+                    minWidth: 0,
+                    width: '100%'
                 }}
             >
                 <ChatWindow

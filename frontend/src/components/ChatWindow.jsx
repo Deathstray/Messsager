@@ -236,12 +236,12 @@ function GroupPanel({ chat, myId, online, onClose, isCreator, token, onAction })
 
 function ScreenShareModal({ session, colors, localVideoRef, remoteVideoRef, onClose, onStop, onLeave }) {
     const isHost = session.role === 'host';
-    const videoStyle = { width: '100%', flex: 1, minHeight: 0, background: '#000', borderRadius: 14, objectFit: 'contain' };
+    const videoStyle = { width: '100%', height: '100%', background: '#000', borderRadius: 14, objectFit: 'contain' };
     const viewerName = session.viewerName || 'Никто';
     const viewerAvatar = session.viewerAvatar || null;
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 470, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => e.target === e.currentTarget && (isHost ? onStop() : onLeave())}>
-            <div className="card-anim" style={{ width: 'min(92vw, 980px)', height: 'min(82vh, 760px)', minWidth: 460, minHeight: 360, background: colors.bgModal, border: `1px solid ${colors.border}`, borderRadius: 18, padding: 18, resize: 'both', overflow: 'auto', display: 'flex', flexDirection: 'column', boxShadow: colors.shadow }}>
+            <div className="card-anim" style={{ width: '95vw', height: '95vh', minWidth: 460, minHeight: 360, background: colors.bgModal, border: `1px solid ${colors.border}`, borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', boxShadow: colors.shadow }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 }}>
                     <div>
                         <div style={{ fontSize: 18, fontWeight: 800, color: colors.textPrimary }}>{isHost ? 'Демонстрация экрана' : 'Просмотр демонстрации'}</div>
@@ -252,11 +252,13 @@ function ScreenShareModal({ session, colors, localVideoRef, remoteVideoRef, onCl
                 <div style={{ display: 'grid', gap: 12, flex: 1, minHeight: 0, gridTemplateColumns: isHost ? 'minmax(0,1fr) 280px' : 'minmax(0,1fr)' }}>
                     {isHost ? (
                         <>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, flex: 1 }}>
                                 <div style={{ fontSize: 13, color: colors.textSecondary }}>Ваш экран</div>
-                                <video ref={localVideoRef} autoPlay muted playsInline style={videoStyle} />
+                                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                                    <video ref={localVideoRef} autoPlay muted playsInline style={videoStyle} />
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 280 }}>
                                 <div style={{ fontSize: 13, color: colors.textSecondary }}>Смотрят сейчас</div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.bgSidebar }}>
                                     {viewerAvatar ? <img src={fileUrl(viewerAvatar)} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} /> :
@@ -271,9 +273,11 @@ function ScreenShareModal({ session, colors, localVideoRef, remoteVideoRef, onCl
                             </div>
                         </>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, flex: 1 }}>
                             <div style={{ fontSize: 13, color: colors.textSecondary }}>Трансляция экрана хоста</div>
-                            <video ref={remoteVideoRef} autoPlay playsInline style={videoStyle} />
+                            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                                <video ref={remoteVideoRef} autoPlay playsInline style={videoStyle} />
+                            </div>
                             <button type="button" onClick={onLeave} style={{ padding: '10px 12px', borderRadius: 10, border: 'none', background: colors.bgPill, color: colors.textSecondary, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Выйти</button>
                         </div>
                     )}
@@ -635,7 +639,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
     );
 
     return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', minWidth: 0, position: 'relative' }} onClick={() => setCtxMenu(null)}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0, position: 'relative' }} onClick={() => setCtxMenu(null)}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid ${colors.border}`, background: colors.bgHeader, flexShrink: 0, boxShadow: colors.shadowHeader }}>
                 <button type="button" style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', padding: '4px 6px', borderRadius: 8, color: colors.textSecondary, display: typeof window !== 'undefined' && window.innerWidth <= 640 ? 'flex' : 'none', alignItems: 'center' }} className="icon-btn-base" onClick={onBack}>
                     <IconBack size={22} color={colors.textSecondary} />

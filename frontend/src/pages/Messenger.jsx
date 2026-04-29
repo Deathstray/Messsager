@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
@@ -23,16 +23,21 @@ export default function Messenger() {
     const [mobileView, setMobileView] = useState('list');
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 640);
 
+    // Ref to track active chat ID without stale closures in socket callbacks
+    const activeChatIdRef = useRef(null);
+    useEffect(() => {
+        activeChatIdRef.current = activeChat?._id || null;
+    }, [activeChat]);
+
     useEffect(() => {
         const total = Object.values(unread).reduce((sum, n) => sum + n, 0);
-        document.title = total > 0 ? `(${total}) Messsager` : 'Messsager';
+        document.title = total > 0 ? `(${total}) TrinityChat` : 'TrinityChat';
     }, [unread]);
 
     useEffect(() => {
         function onResize() {
             setIsMobile(window.innerWidth <= 640);
         }
-
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
@@ -77,12 +82,10 @@ export default function Messenger() {
 
             setIncomingMsg({ chatId, message, ts: Date.now() });
 
-            setActiveChat(prev => {
-                if (prev?._id !== chatId) {
-                    setUnread(u => ({ ...u, [chatId]: (u[chatId] || 0) + 1 }));
-                }
-                return prev;
-            });
+            // Use ref to avoid stale closure — only count unread for non-active chats
+            if (activeChatIdRef.current !== chatId) {
+                setUnread(u => ({ ...u, [chatId]: (u[chatId] || 0) + 1 }));
+            }
         });
 
         s.on('message:reaction', data => {

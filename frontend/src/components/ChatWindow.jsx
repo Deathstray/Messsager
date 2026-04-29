@@ -249,7 +249,7 @@ function ScreenShareModal({ session, colors, localVideoRef, remoteVideoRef, onCl
                     </div>
                     <button type="button" onClick={() => isHost ? onStop() : onLeave()} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: colors.textMuted, fontSize: 22 }}>×</button>
                 </div>
-                <div style={{ display: 'grid', gap: 12, flex: 1, minHeight: 0, gridTemplateColumns: isHost ? 'minmax(0,1fr) 280px' : 'minmax(0,1fr) 220px' }}>
+                <div style={{ display: 'grid', gap: 12, flex: 1, minHeight: 0, gridTemplateColumns: isHost ? 'minmax(0,1fr) 280px' : 'minmax(0,1fr)' }}>
                     {isHost ? (
                         <>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
@@ -271,16 +271,11 @@ function ScreenShareModal({ session, colors, localVideoRef, remoteVideoRef, onCl
                             </div>
                         </>
                     ) : (
-                        <>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
-                                <div style={{ fontSize: 13, color: colors.textSecondary }}>Трансляция</div>
-                                <video ref={remoteVideoRef} autoPlay playsInline style={videoStyle} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <div style={{ flex: 1 }} />
-                                <button type="button" onClick={onLeave} style={{ padding: '10px 12px', borderRadius: 10, border: 'none', background: colors.bgPill, color: colors.textSecondary, fontWeight: 800, cursor: 'pointer' }}>Выйти</button>
-                            </div>
-                        </>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
+                            <div style={{ fontSize: 13, color: colors.textSecondary }}>Трансляция экрана хоста</div>
+                            <video ref={remoteVideoRef} autoPlay playsInline style={videoStyle} />
+                            <button type="button" onClick={onLeave} style={{ padding: '10px 12px', borderRadius: 10, border: 'none', background: colors.bgPill, color: colors.textSecondary, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Выйти</button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -317,7 +312,15 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
     const screenPendingViewerRef = useRef(null);
     const myId = String(user?.id || user?._id || '');
 
+    // Keep ref in sync with state (but also allow synchronous updates via direct ref assignment)
     useEffect(() => { screenSessionRef.current = screenSession; }, [screenSession]);
+
+    // When screen modal opens for viewer and stream was already received, set srcObject
+    useEffect(() => {
+        if (screenSession?.role === 'viewer' && screenRemoteVideoRef.current && screenRemoteStreamRef.current) {
+            screenRemoteVideoRef.current.srcObject = screenRemoteStreamRef.current;
+        }
+    }, [screenSession]);
 
     const isGroup = chat?.type === 'group';
     const isSaved = chat?.type === 'saved';
@@ -374,7 +377,8 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
         };
         const onTypingStart = ({ userId, chatId, displayName }) => { if (chatId === chat._id && userId !== myId) setTyping(displayName || 'Кто-то'); };
         const onTypingStop = ({ userId, chatId }) => { if (chatId === chat._id && userId !== myId) setTyping(null); };
-        const onScreenJoined = async ({ sessionId, viewerId, viewerName, viewerAvatar, hostId }) => {
+
+        const onScreenJoined = async ({ sessionId, viewerId, viewerName, viewerAvatar }) => {
             const sess = screenSessionRef.current;
             if (!sess || String(sessionId) !== String(sess.sessionId)) return;
             if (sess.role === 'host') {
@@ -389,6 +393,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
                 }
             }
         };
+
         const onScreenSignal = async ({ sessionId, data }) => {
             const sess = screenSessionRef.current;
             if (!sess || String(sessionId) !== String(sess.sessionId) || !screenPcRef.current) return;
@@ -405,6 +410,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
                 }
             } catch {}
         };
+
         const onScreenEnded = ({ sessionId }) => {
             if (String(sessionId) === String(screenSessionRef.current?.sessionId)) cleanupScreenShare(false);
         };
@@ -412,6 +418,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
             if (String(sessionId) === String(screenSessionRef.current?.sessionId))
                 setScreenSession(prev => prev ? { ...prev, viewerId: null, viewerName: '', viewerAvatar: null } : prev);
         };
+
         socket.on('message:deleted', onDel);
         socket.on('typing:start', onTypingStart);
         socket.on('typing:stop', onTypingStop);
@@ -499,7 +506,10 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
                 const stream = e.streams?.[0];
                 if (!stream) return;
                 screenRemoteStreamRef.current = stream;
-                if (screenRemoteVideoRef.current) screenRemoteVideoRef.current.srcObject = stream;
+                // Set srcObject immediately if the video element is already mounted
+                if (screenRemoteVideoRef.current) {
+                    screenRemoteVideoRef.current.srcObject = stream;
+                }
                 setScreenSession(prev => prev ? { ...prev, status: 'live' } : prev);
             };
         }
@@ -522,6 +532,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
         screenPendingViewerRef.current = null;
         if (screenLocalVideoRef.current) screenLocalVideoRef.current.srcObject = null;
         if (screenRemoteVideoRef.current) screenRemoteVideoRef.current.srcObject = null;
+        screenSessionRef.current = null;
         setScreenSession(null);
     }
 
@@ -529,35 +540,57 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
         if (!chat || !socket) return;
         try {
             const sessionId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `screen-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+            // Request display media BEFORE setting up session to avoid timing issues
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+            screenLocalStreamRef.current = stream;
+
             const fd = new FormData();
-            fd.append('text', '📺 Демонстрация экрана'); fd.append('kind', 'screen_invite');
+            fd.append('text', '📺 Демонстрация экрана');
+            fd.append('kind', 'screen_invite');
             fd.append('screen_session', JSON.stringify({ session_id: sessionId, status: 'waiting' }));
             const msg = await apiFetch(`/api/chats/${chat._id}/messages`, { method: 'POST', body: fd }, token);
             setMessages(prev => { const next = upsert(prev, msg); rebuild(next); return next; });
+
+            // Set ref synchronously so socket handlers work immediately
+            const newSession = { sessionId, role: 'host', status: 'waiting', messageId: msg._id, viewerId: null, viewerName: '', viewerAvatar: null };
+            screenSessionRef.current = newSession;
+            setScreenSession(newSession);
+
             socket.emit('screen:register', { sessionId, chatId: chat._id, messageId: msg._id });
-            setScreenSession({ sessionId, role: 'host', status: 'waiting', messageId: msg._id, viewerId: null, viewerName: '', viewerAvatar: null });
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-            screenLocalStreamRef.current = stream;
+
             if (screenLocalVideoRef.current) screenLocalVideoRef.current.srcObject = stream;
+
             const pc = createScreenPeer('host');
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
             stream.getVideoTracks()[0].onended = () => cleanupScreenShare(true);
+
             if (screenPendingViewerRef.current) {
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
                 socket.emit('screen:signal', { sessionId, data: { type: 'offer', sdp: offer.sdp } });
             }
-        } catch (err) { alert(err.message || 'Не удалось начать демонстрацию'); await cleanupScreenShare(false); }
+        } catch (err) {
+            alert(err.message || 'Не удалось начать демонстрацию');
+            await cleanupScreenShare(false);
+        }
     }
 
     async function joinScreenShare(sessionId) {
         if (!chat || !socket || !sessionId) return;
         try {
             if (screenSessionRef.current?.role === 'viewer') await cleanupScreenShare(false);
-            setScreenSession({ sessionId, role: 'viewer', status: 'joining', messageId: null, viewerId: myId, viewerName: user?.display_name || '', viewerAvatar: user?.avatar || null });
+
+            // Set ref synchronously BEFORE emitting socket event to avoid race condition
+            const newSession = { sessionId, role: 'viewer', status: 'joining', messageId: null, viewerId: myId, viewerName: user?.display_name || '', viewerAvatar: user?.avatar || null };
+            screenSessionRef.current = newSession;
+            setScreenSession(newSession);
+
             createScreenPeer('viewer');
             socket.emit('screen:join', { sessionId, chatId: chat._id });
-        } catch (err) { alert(err.message || 'Не удалось подключиться'); }
+        } catch (err) {
+            alert(err.message || 'Не удалось подключиться');
+        }
     }
 
     async function handleModeration(action, memberId) {
@@ -574,7 +607,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
         } catch (err) { alert(err.message); }
     }
 
-    const IconStar = ({ size = 18, color = 'currentColor' }) => (
+    const IconStarFilled = ({ size = 18, color = 'currentColor' }) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
     );
 
@@ -590,7 +623,7 @@ export default function ChatWindow({ chat, socket, online, incomingMsg, incoming
 
     const headerAvatar = isSaved ? (
         <div style={{ width: 40, height: 40, borderRadius: '50%', background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <IconStar size={18} color="#fff" />
+            <IconStarFilled size={18} color="#fff" />
         </div>
     ) : isGroup ? (
         chat.avatar ? <img src={fileUrl(chat.avatar)} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} /> :

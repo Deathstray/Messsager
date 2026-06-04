@@ -208,3 +208,10 @@ process.on('SIGINT', async () => {
   await mongoose.disconnect()
   process.exit(0)
 })
+
+setInterval(() => {
+  const url = process.env.RENDER_URL;
+  if (url) {
+    require('https').get(url).on('error', () => {});
+  }
+}, 10 * 60 * 1000);

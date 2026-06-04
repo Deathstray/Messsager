@@ -209,9 +209,10 @@ process.on('SIGINT', async () => {
   process.exit(0)
 })
 
+// Автопинг чтобы сервер не засыпал
 setInterval(() => {
-  const url = process.env.RENDER_URL;
-  if (url) {
-    require('https').get(url).on('error', () => {});
-  }
-}, 10 * 60 * 1000);
+  require('https').get(
+      'https://messsager-xeq9.onrender.com/api/login',
+      () => console.log('ping ok')
+  ).on('error', () => {});
+}, 600000);
